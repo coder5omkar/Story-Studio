@@ -1057,10 +1057,11 @@ function renderProduction() {
   if (!musicEnabled) $("prodMusic").checked = false;
 
   const status = S.data.scene_status || [];
+  const currentReview = currentReviewScene();
   $("sceneAssetSummary").textContent =
     `${status.filter((s) => s.image).length}/${status.length} images · ${status.filter((s) => s.audio).length}/${status.length} voice`;
   $("sceneStatusTable").querySelector("tbody").innerHTML = status.map((s) =>
-    `<tr class="review-row ${s.id === S.reviewScene ? "selected" : ""}" data-review="${s.id}">
+    `<tr class="review-row ${s.id === currentReview?.id ? "selected" : ""}" data-review="${s.id}">
       <td class="mono">${String(s.id).padStart(2, "0")}</td>
       <td>${s.words}</td>
       <td class="${s.image ? "ok" : "no"}">${s.image ? "ready" : "missing"}</td>
