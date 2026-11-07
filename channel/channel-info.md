@@ -9,6 +9,8 @@
 - **English tagline:** Every story leaves a lesson.
 - **Language:** Hindi
 - **Business email:** oshosheekhe@gmail.com
+- **Story prompts:** [story-prompts.md](story-prompts.md)
+- **Upload template:** [upload-template.md](upload-template.md)
 - **Niche:** Hindi moral, family, social and inspirational stories
 - **Audience:** Indian viewers 18–45 who enjoy emotional, values-driven stories
 - **Visual identity:** deep ink-blue, warm amber, cream, diya and open-book motif
@@ -162,7 +164,9 @@ channel/
   profile.png            # final 800×800 profile photo
   banner.png             # final 2048×1152 banner
   banner.html            # text overlay source for the banner
-  channel-info.md        # this file
+  channel-info.md        # channel brand and 12-story plan
+  story-prompts.md       # copy-paste Story Studio prompts
+  upload-template.md     # title/description/tags/upload checklist
 ```
 
 YouTube upload specs:
