@@ -13,6 +13,7 @@ from pathlib import Path
 
 from . import providers, qa, store
 from .jobs import Job
+from . import thumbnail
 
 ROOT = store.ROOT
 PIPELINE_DIR = store.PIPELINE_DIR
@@ -257,7 +258,7 @@ def generate_story(
 
     store.set_stage(state, "story", "draft", approved=False, notes="Generated draft")
     store.invalidate(state, [
-        "scenes", "samples.voice", "samples.image", "samples.clip", "production", "final",
+        "scenes", "samples.voice", "samples.image", "samples.clip", "production", "final", "publish",
     ], "story changed")
     state["settings"]["story_topic"] = topic
     state["settings"]["story_minutes"] = minutes
@@ -279,7 +280,7 @@ def save_story(pid: str, state: dict, text: str) -> dict:
     paths["story"].write_text(text, encoding="utf-8")
     store.set_stage(state, "story", "draft", approved=False, notes="Edited draft")
     store.invalidate(state, [
-        "scenes", "samples.voice", "samples.image", "samples.clip", "production", "final",
+        "scenes", "samples.voice", "samples.image", "samples.clip", "production", "final", "publish",
     ], "story edited")
     target = int(float(state["settings"].get("story_minutes", 5)) * 130)
     expected = int(state["settings"].get("story_chapters", 0) or 0)
@@ -1137,6 +1138,198 @@ def render_final(
                     approved=store.stage(state, "production").get("approved", False))
     store.save_state(pid, state)
     job.set_progress(100, "Final render ready")
+    return {"path": _rel(pid, out), "validation": validation}
+
+
+def _publish_settings(state: dict) -> dict:
+    defaults = store.default_settings().get("publish", {})
+    current = state.get("settings", {}).get("publish", {})
+    return {**defaults, **current}
+
+
+PUBLISH_SYSTEM = (
+    "You are a YouTube packaging editor for a Hindi storytelling channel. "
+    "You write honest, curiosity-driven titles, descriptions and thumbnail text. "
+    "Never reveal the ending. Never invent facts. Return only valid JSON."
+)
+
+
+def generate_publish_kit(pid: str, state: dict, job: Job) -> dict:
+    paths = store.ensure_dirs(pid)
+    story = paths["story"].read_text(encoding="utf-8").strip() if paths["story"].exists() else ""
+    if not story:
+        raise RuntimeError("Generate or write the story first")
+    pub = _publish_settings(state)
+    job.set_progress(10, "Writing titles and description")
+    prompt = f"""
+Channel name: {pub.get('channel_name', '')}
+Channel tagline: {pub.get('channel_tagline', '')}
+Contact email: {pub.get('contact_email', '')}
+Default CTA: {pub.get('cta', '')}
+Default hashtags: {pub.get('hashtags', '')}
+
+Story:
+{story[:12000]}
+
+Create a YouTube publish kit for this story.
+
+Requirements:
+- titles: 5 catchy Hindi titles, each 35-70 characters. Honest curiosity, no fake claims, no ending spoilers. Include search-friendly words such as "Hindi Kahani" or "Emotional Story" where natural.
+- best_title: the single strongest title. Include the channel name if it fits naturally.
+- description: 1200-1800 characters in Hindi. Paragraph 1: hook and premise without spoiling the ending. Paragraph 2: what the viewer will feel/learn. Paragraph 3: moral, CTA, contact email and hashtags. Include a short fictional-story disclaimer. Use \n\n between paragraphs.
+- tags: 12-18 short YouTube tags in Hindi/English, no # symbols.
+- thumbnail_text: 3-5 high-impact Hindi words, maximum 28 characters, no punctuation other than a comma if needed.
+- thumbnail_prompt: one English image-generation prompt, 25-50 words, for a cinematic YouTube thumbnail. Show the protagonist's face/emotion and one key story object or moment. Strong composition, leave negative space on the left or bottom for text, no text in the image, no watermark.
+
+Return only this JSON object:
+{{
+  "titles": ["...", "..."],
+  "best_title": "...",
+  "description": "...",
+  "tags": ["...", "..."],
+  "thumbnail_text": "...",
+  "thumbnail_prompt": "..."
+}}
+""".strip()
+    raw = providers.chat(
+        state["settings"],
+        [{"role": "system", "content": PUBLISH_SYSTEM}, {"role": "user", "content": prompt}],
+        temperature=0.75,
+        num_predict=3200,
+    )
+    job.set_progress(70, "Parsing publish kit")
+    data = providers.extract_json(raw)
+    if not isinstance(data, dict):
+        raise RuntimeError(f"Expected a JSON object, got {type(data).__name__}")
+
+    titles = data.get("titles") or []
+    if isinstance(titles, str):
+        titles = [titles]
+    titles = [str(t).strip() for t in titles if str(t).strip()][:6]
+    best = str(data.get("best_title") or "").strip()
+    if not best and titles:
+        best = titles[0]
+    if not best:
+        best = f"{state.get('title', 'Hindi Story')} | Hindi Kahani"
+    if best not in titles:
+        titles.insert(0, best)
+
+    description = str(data.get("description") or "").strip()
+    if not description:
+        raise RuntimeError("The model did not return a description; try regenerating")
+
+    tags_raw = data.get("tags") or []
+    if isinstance(tags_raw, str):
+        tags_raw = re.split(r"[,;]+", tags_raw)
+    tags = [str(tag).strip().lstrip("#") for tag in tags_raw if str(tag).strip()][:20]
+    thumbnail_text = str(data.get("thumbnail_text") or "").strip()[:28]
+    if not thumbnail_text:
+        thumbnail_text = best.split("|")[0].strip()[:28]
+    thumbnail_prompt = str(data.get("thumbnail_prompt") or "").strip()
+    if not thumbnail_prompt:
+        thumbnail_prompt = (
+            "Cinematic YouTube thumbnail of the protagonist in a tense emotional moment, "
+            "strong face lighting, one symbolic story object, Indian middle-class setting, "
+            "dramatic composition with empty space on the left for text, no text, no watermark"
+        )
+
+    store.set_stage(state, "publish", "draft", approved=False, notes="Publish kit generated")
+    state["stages"]["publish"].update({
+        "title_options": titles,
+        "title": best,
+        "description": description,
+        "tags": ", ".join(tags),
+        "thumbnail_text": thumbnail_text,
+        "thumbnail_prompt": thumbnail_prompt,
+        "thumbnail_path": "",
+        "thumbnail_status": "empty",
+        "generated_at": store.now(),
+    })
+    store.save_state(pid, state)
+    job.set_progress(100, "Publish kit ready")
+    return {"title": best, "description_chars": len(description), "tags": len(tags)}
+
+
+def save_publish_kit(pid: str, state: dict, payload: dict) -> dict:
+    node = store.stage(state, "publish")
+    old_text = str(node.get("thumbnail_rendered_text") or node.get("thumbnail_text") or "")
+    title = str(payload.get("title", "")).strip()
+    description = str(payload.get("description", "")).strip()
+    tags = str(payload.get("tags", "")).strip()
+    thumbnail_text = str(payload.get("thumbnail_text", "")).strip()[:28]
+    if not title:
+        raise RuntimeError("Title cannot be empty")
+    if not description:
+        raise RuntimeError("Description cannot be empty")
+    node.update({
+        "title": title,
+        "description": description,
+        "tags": tags,
+        "thumbnail_text": thumbnail_text,
+    })
+    if node.get("thumbnail_path"):
+        node["thumbnail_status"] = "ready" if thumbnail_text == old_text else "stale"
+    store.set_stage(state, "publish", "ready", approved=False, notes="Publish kit edited")
+    store.save_state(pid, state)
+    return {"ok": True, "thumbnail_status": node.get("thumbnail_status", "empty")}
+
+def generate_thumbnail(pid: str, state: dict, job: Job, *, engine: str | None = None) -> dict:
+    paths = store.ensure_dirs(pid)
+    node = store.stage(state, "publish")
+    prompt = str(node.get("thumbnail_prompt") or "").strip()
+    if not prompt:
+        raise RuntimeError("Generate the publish kit first so a thumbnail prompt exists")
+    settings = state["settings"]
+    engine = engine or settings.get("image", {}).get("engine", "zimage")
+    work = paths["samples"] / "thumbnail"
+    render = work / "render"
+    if render.exists():
+        shutil.rmtree(render)
+    (render / "images").mkdir(parents=True, exist_ok=True)
+    scene = {
+        "id": 1,
+        "chapter": 0,
+        "narration": "",
+        "image_prompt": prompt,
+        "camera": "slow push in",
+        "mood": "dramatic",
+    }
+    (render / "scenes.json").write_text(
+        json.dumps([scene], ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    cfg = store.write_config_for_dir(render, state)
+    job.set_progress(10, "Rendering thumbnail base")
+    _run_script(
+        pid, state, "images.py",
+        ["--engine", engine, "--ids", "1", "--out-dir", str(render / "images"), "--force"],
+        job, config_path=cfg,
+    )
+    base = render / "images" / "scene_001.png"
+    if not base.exists():
+        raise RuntimeError("Thumbnail base image was not produced; check ComfyUI")
+    job.set_progress(85, "Adding thumbnail text")
+    pub = _publish_settings(state)
+    out = work / "thumbnail.png"
+    width, height = thumbnail.render_thumbnail(
+        base,
+        out,
+        str(node.get("thumbnail_text") or node.get("title") or "एक कहानी"),
+        str(pub.get("channel_name") or ""),
+        str(pub.get("channel_tagline") or ""),
+    )
+    validation = qa.validate_image(out)
+    store.set_stage(state, "publish", "ready", approved=False, notes="Thumbnail generated")
+    node.update({
+        "thumbnail_path": _rel(pid, out),
+        "thumbnail_status": "ready",
+        "thumbnail_rendered_text": str(node.get("thumbnail_text") or ""),
+        "thumbnail_engine": engine,
+        "thumbnail_validation": validation,
+        "thumbnail_size": [width, height],
+        "thumbnail_updated_at": store.now(),
+    })
+    store.save_state(pid, state)
+    job.set_progress(100, "Thumbnail ready")
     return {"path": _rel(pid, out), "validation": validation}
 
 

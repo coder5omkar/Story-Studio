@@ -32,6 +32,8 @@ final video.
 - **Real subtitle/motion preview** rendered through the final `assemble.py` path.
 - **Resumable batch production** with per-scene image/voice retry.
 - **Final review** with approval and optional subtitle burn-in.
+- **Publish kit** with five Hindi titles, a copy-paste YouTube description, tags
+  and a 1280×720 thumbnail rendered in the project's visual style.
 - **Local-first security**: binds to `127.0.0.1`; API keys are stored locally in
   `studio/.secrets.json` (gitignored) or supplied through environment variables.
 
@@ -272,6 +274,14 @@ or `OPENAI_API_KEY`.
    - Retry individual scenes without rerunning everything.
 5. **Final review**
    - Watch the assembled video, approve it, and download `final.mp4`.
+6. **Publish kit**
+   - Generate five Hindi titles, a YouTube description (hook, moral, CTA,
+     disclaimer, hashtags), tags and thumbnail text from the finished story.
+   - **Generate thumbnail** renders a 1280×720 PNG in the project's visual style
+     with a Devanagari overlay.
+   - Edit and save any field, then copy title, description and tags straight into
+     YouTube Studio. Channel identity defaults live under
+     **Settings → Publish / YouTube**.
 
 ## Voice normalization
 

@@ -119,6 +119,11 @@ def _project_payload(pid: str) -> dict:
             }
     active = manager.active_for_project(pid)
     music_path = paths["audio"] / "music.mp3"
+    publish = json.loads(json.dumps(state["stages"].get("publish", {})))
+    if publish.get("thumbnail_path"):
+        publish["thumbnail_url"] = _versioned_media_url(
+            pid, publish["thumbnail_path"], paths["root"] / publish["thumbnail_path"]
+        )
     return {
         "project": {
             "id": pid,
@@ -135,6 +140,7 @@ def _project_payload(pid: str) -> dict:
         "project_audio": {
             "music": _versioned_media_url(pid, "audio/music.mp3", music_path) if music_path.exists() else "",
         },
+        "publish": publish,
         "gates": gates,
         "outputs": outputs,
         "active_job": active.to_dict(include_logs=False) if active else None,
@@ -267,13 +273,15 @@ def patch_settings(pid: str, payload: dict = Body(...)) -> dict:
 
     invalidate: list[str] = []
     if old.get("image") != new.get("image"):
-        invalidate += ["samples.image", "samples.clip", "production", "final"]
+        invalidate += ["samples.image", "samples.clip", "production", "final", "publish"]
     if old.get("tts") != new.get("tts"):
         invalidate += ["samples.voice", "samples.clip", "production", "final"]
     if old.get("music") != new.get("music"):
         invalidate += ["samples.music", "samples.clip", "production", "final"]
     if old.get("subtitles") != new.get("subtitles"):
         invalidate += ["samples.clip", "final"]
+    if old.get("publish") != new.get("publish"):
+        invalidate += ["publish"]
     if invalidate:
         store.invalidate(state, sorted(set(invalidate)), "settings changed")
     store.save_state(pid, state)
@@ -595,6 +603,43 @@ def approve_final(pid: str) -> dict:
                     notes="Final render approved", validation=validation)
     store.save_state(pid, state)
     return {"ok": True, "validation": validation}
+
+
+# ---------------------------------------------------------------------------
+# Publish kit
+# ---------------------------------------------------------------------------
+
+
+@app.post("/api/projects/{pid}/publish/generate")
+def generate_publish(pid: str, payload: dict = Body(default={})) -> dict:
+    state = _project(pid)
+    if not _story(pid):
+        raise HTTPException(400, "Generate or write the story first")
+    _apply_llm_payload(state, payload)
+    store.write_project_config(pid, state)
+    store.save_state(pid, state)
+    return _start(pid, "publish_kit", lambda job: ops.generate_publish_kit(pid, state, job))
+
+
+@app.put("/api/projects/{pid}/publish")
+def save_publish(pid: str, payload: dict = Body(...)) -> dict:
+    state = _project(pid)
+    try:
+        return ops.save_publish_kit(pid, state, payload)
+    except Exception as exc:
+        raise _fail(exc)
+
+
+@app.post("/api/projects/{pid}/publish/thumbnail")
+def generate_publish_thumbnail(pid: str, payload: dict = Body(default={})) -> dict:
+    state = _project(pid)
+    node = state["stages"].get("publish", {})
+    if not node.get("thumbnail_prompt"):
+        raise HTTPException(409, "Generate the publish kit first")
+    engine = str(payload.get("engine", "")).strip() or None
+    return _start(pid, "publish_thumbnail", lambda job: ops.generate_thumbnail(
+        pid, state, job, engine=engine,
+    ))
 
 
 # ---------------------------------------------------------------------------

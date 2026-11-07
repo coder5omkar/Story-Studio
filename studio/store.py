@@ -86,6 +86,13 @@ def default_settings() -> dict:
         },
         "tts": {**cfg.get("tts", {})},
         "music": {**cfg.get("music", {}), "volume": 0.10, "enabled": True},
+        "publish": {
+            "channel_name": "Osho Seekhe",
+            "channel_tagline": "हर कहानी, एक सीख",
+            "contact_email": "oshosheekhe@gmail.com",
+            "hashtags": "#HindiKahani #MoralStory #OshoSeekhe",
+            "cta": "नई कहानी हर मंगलवार और शुक्रवार शाम 7 बजे।",
+        },
         "subtitles": True,
         "video": {"width": 1920, "height": 1080, "fps": 30},
         "comfy_url": cfg.get("comfy_url", "http://127.0.0.1:8188"),
@@ -118,6 +125,7 @@ def new_state(pid: str, title: str) -> dict:
             },
             "production": _blank_stage(),
             "final": _blank_stage(),
+            "publish": _blank_stage(),
         },
         "versions": {"story": 0, "scenes": 0},
         "history": [],
@@ -208,6 +216,9 @@ def load_state(pid: str) -> dict:
     settings.setdefault("story_instructions", "")
     music = settings.setdefault("music", {})
     music.setdefault("enabled", True)
+    publish = settings.setdefault("publish", {})
+    for key, value in default_settings().get("publish", {}).items():
+        publish.setdefault(key, value)
     llm = settings.setdefault("llm", {})
     llm.setdefault("provider", "ollama")
     llm.setdefault("model", "aya-expanse:8b")
@@ -243,6 +254,7 @@ def load_state(pid: str) -> dict:
         state["stages"]["samples"].setdefault(kind, _blank_stage())
     state["stages"].setdefault("production", _blank_stage())
     state["stages"].setdefault("final", _blank_stage())
+    state["stages"].setdefault("publish", _blank_stage())
     state.setdefault("versions", {"story": 0, "scenes": 0})
     state.setdefault("history", [])
     # Clean up keys created by an early buggy path helper.

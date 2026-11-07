@@ -330,6 +330,27 @@ input[type="checkbox"] { accent-color: var(--amber); }
   white-space: pre-wrap;
 }
 
+.title-options { display: grid; gap: 7px; margin-bottom: 14px; }
+.title-option {
+  text-align: left;
+  padding: 9px 11px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(255,255,255,.012);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.title-option:hover { border-color: #3a4658; background: rgba(255,255,255,.025); }
+.title-option.selected {
+  border-color: rgba(240, 179, 92, .75);
+  background: var(--amber-soft);
+  color: var(--text);
+}
+#publishDescription, #publishTags { width: 100%; }
+#publishDescription { min-height: 260px; font-size: 13px; line-height: 1.7; }
+
 .style-gallery-wrap {
   margin: 4px 0 14px;
   border: 1px solid var(--border-soft);

@@ -293,7 +293,7 @@ async function boot() {
   bind();
   renderStyleGallery();
   const hashPage = location.hash.replace(/^#/, "");
-  if (["story", "scenes", "samples", "production", "final", "settings"].includes(hashPage)) {
+  if (["story", "scenes", "samples", "production", "final", "publish", "settings"].includes(hashPage)) {
     S.page = hashPage;
   }
   await loadHealth();
@@ -398,6 +398,7 @@ function renderAll() {
   renderSamples();
   renderProduction();
   renderFinal();
+  renderPublish();
   renderSettings();
   showPage(S.page);
 }
@@ -419,6 +420,7 @@ function renderRail() {
     samples: aggregateSampleStatus(),
     production: stageStatus("production"),
     final: stageStatus("final"),
+    publish: stageStatus("publish"),
   };
   for (const [page, status] of Object.entries(map)) {
     const badge = $(`badge-${page}`);
@@ -1165,6 +1167,142 @@ async function approveFinal() {
 }
 
 // ---------------------------------------------------------------------------
+// Publish kit
+// ---------------------------------------------------------------------------
+
+function renderPublish() {
+  const p = S.data.publish || {};
+  const status = p.status || "empty";
+  $("publishStatus").textContent = statusText(status);
+  $("publishStatus").className = `status ${statusClass(status)}`;
+
+  const options = Array.isArray(p.title_options) ? p.title_options : [];
+  const selected = p.title || options[0] || "";
+  $("publishTitleOptions").innerHTML = options.length
+    ? options.map((t) =>
+        `<button type="button" class="title-option ${t === selected ? "selected" : ""}" data-title="${esc(t)}">${esc(t)}</button>`
+      ).join("")
+    : `<p class="hint">Generate a publish kit to see title options.</p>`;
+
+  if (document.activeElement !== $("publishTitle")) $("publishTitle").value = selected;
+  if (document.activeElement !== $("publishDescription")) $("publishDescription").value = p.description || "";
+  if (document.activeElement !== $("publishTags")) $("publishTags").value = p.tags || "";
+  if (document.activeElement !== $("publishThumbText")) $("publishThumbText").value = p.thumbnail_text || "";
+
+  const thumbUrl = p.thumbnail_url || "";
+  const img = $("publishThumbPreview");
+  if (thumbUrl) {
+    if (img.getAttribute("src") !== thumbUrl) img.src = thumbUrl;
+    img.classList.remove("hidden");
+  } else {
+    img.removeAttribute("src");
+    img.classList.add("hidden");
+  }
+  const download = $("publishThumbDownload");
+  if (thumbUrl) {
+    download.href = thumbUrl;
+    download.classList.remove("hidden");
+  } else {
+    download.removeAttribute("href");
+    download.classList.add("hidden");
+  }
+
+  const thumbStatus = p.thumbnail_status || "empty";
+  $("publishThumbStatus").textContent = statusText(thumbStatus);
+  $("publishThumbStatus").className = `status ${statusClass(thumbStatus)}`;
+  $("generatePublish").disabled = !S.data.story || !!S.data.active_job;
+  $("generateThumbnail").disabled = !p.thumbnail_prompt || !!S.data.active_job;
+  renderPublishLog();
+}
+
+function renderPublishLog() {
+  const el = $("publishLog");
+  if (!el) return;
+  el.textContent = S.job?.logs?.length
+    ? S.job.logs.join("\n")
+    : (S.job ? S.job.message : "No job running.");
+}
+
+function markPublishTitle(title) {
+  $$("#publishTitleOptions [data-title]").forEach((button) => {
+    button.classList.toggle("selected", button.dataset.title === title);
+  });
+}
+
+async function generatePublish() {
+  if (!S.data?.story) return toast("Generate the story first", "error");
+  const provider = $("llmProvider").value;
+  try {
+    const res = await api(`/api/projects/${S.pid}/publish/generate`, {
+      method: "POST",
+      body: {
+        provider,
+        model: $("storyModel").value.trim(),
+        api_base: providerBase(provider),
+      },
+    });
+    startJob(res);
+    toast("Generating titles, description and tags");
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function generatePublishThumbnail() {
+  const p = S.data.publish || {};
+  if (!p.thumbnail_prompt) return toast("Generate the publish kit first", "error");
+  try {
+    const res = await api(`/api/projects/${S.pid}/publish/thumbnail`, {
+      method: "POST",
+      body: { engine: S.data.state.settings.image.engine || "zimage" },
+    });
+    startJob(res);
+    toast("Generating thumbnail");
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function savePublish() {
+  try {
+    await api(`/api/projects/${S.pid}/publish`, {
+      method: "PUT",
+      body: {
+        title: $("publishTitle").value.trim(),
+        description: $("publishDescription").value,
+        tags: $("publishTags").value,
+        thumbnail_text: $("publishThumbText").value.trim(),
+      },
+    });
+    toast("Publish kit saved");
+    await loadProject();
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function copyPublishText(text, label) {
+  const value = String(text || "").trim();
+  if (!value) return toast(`Nothing to copy for ${label}`, "error");
+  try {
+    await navigator.clipboard.writeText(value);
+    toast(`${label} copied`);
+  } catch {
+    const area = document.createElement("textarea");
+    area.value = value;
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    document.execCommand("copy");
+    area.remove();
+    toast(`${label} copied`);
+  }
+}
+
+function copyPublishAll() {
+  const title = $("publishTitle").value.trim();
+  const description = $("publishDescription").value.trim();
+  const tags = $("publishTags").value.trim();
+  const text = `${title}\n\n${description}\n\nTags:\n${tags}`;
+  copyPublishText(text, "Publish kit");
+}
+
+// ---------------------------------------------------------------------------
 // Settings
 // ---------------------------------------------------------------------------
 
@@ -1202,6 +1340,12 @@ function renderSettings() {
   $("setMusicVolume").value = s.music.volume ?? 0.1;
   $("setMusicEnabled").checked = s.music.enabled !== false;
   $("setSubtitles").checked = !!s.subtitles;
+  const publish = s.publish || {};
+  $("setChannelName").value = publish.channel_name || "";
+  $("setChannelTagline").value = publish.channel_tagline || "";
+  $("setContactEmail").value = publish.contact_email || "";
+  $("setHashtags").value = publish.hashtags || "";
+  $("setCta").value = publish.cta || "";
 }
 
 function collectSettings() {
@@ -1246,6 +1390,13 @@ function collectSettings() {
     comfy_url: $("setComfyUrl").value.trim(),
     ollama_url: $("setOllamaUrl").value.trim(),
     subtitles: $("setSubtitles").checked,
+    publish: {
+      channel_name: $("setChannelName").value.trim(),
+      channel_tagline: $("setChannelTagline").value.trim(),
+      contact_email: $("setContactEmail").value.trim(),
+      hashtags: $("setHashtags").value.trim(),
+      cta: $("setCta").value.trim(),
+    },
     video: old.video || { width: 1920, height: 1080, fps: 30 },
     story_chapters: old.story_chapters || 5,
     story_minutes: old.story_minutes || 5,
@@ -1327,6 +1478,7 @@ async function pollJob() {
     S.job = job;
     renderJobPill();
     renderJobPanel();
+    renderPublishLog();
     if (job.status === "done" || job.status === "failed") {
       clearInterval(S.poll);
       S.poll = null;
@@ -1336,6 +1488,7 @@ async function pollJob() {
       await loadProject();
       S.job = job;
       renderJobPanel();
+      renderPublishLog();
     }
   } catch (e) {
     // A transient poll failure should not kill the UI.
@@ -1487,6 +1640,20 @@ function bind() {
 
   $("renderFinal").addEventListener("click", renderFinalVideo);
   $("approveFinal").addEventListener("click", approveFinal);
+
+  $("generatePublish").addEventListener("click", generatePublish);
+  $("savePublish").addEventListener("click", savePublish);
+  $("generateThumbnail").addEventListener("click", generatePublishThumbnail);
+  $("copyTitle").addEventListener("click", () => copyPublishText($("publishTitle").value, "Title"));
+  $("copyDescription").addEventListener("click", () => copyPublishText($("publishDescription").value, "Description"));
+  $("copyTags").addEventListener("click", () => copyPublishText($("publishTags").value, "Tags"));
+  $("copyPublishAll").addEventListener("click", copyPublishAll);
+  $("publishTitleOptions").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-title]");
+    if (!button) return;
+    $("publishTitle").value = button.dataset.title;
+    markPublishTitle(button.dataset.title);
+  });
 
   $("saveSettings").addEventListener("click", saveSettings);
   $("saveApiKey").addEventListener("click", saveApiKey);

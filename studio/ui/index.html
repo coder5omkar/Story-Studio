@@ -53,6 +53,10 @@
         <span class="stage-num">05</span><span class="stage-name">Final review</span>
         <span class="stage-badge" id="badge-final">empty</span>
       </button>
+      <button data-page="publish" class="stage-link">
+        <span class="stage-num">06</span><span class="stage-name">Publish kit</span>
+        <span class="stage-badge" id="badge-publish">empty</span>
+      </button>
       <button data-page="settings" class="stage-link settings-link">
         <span class="stage-num">⚙</span><span class="stage-name">Settings</span>
       </button>
@@ -289,6 +293,58 @@
       </div>
     </section>
 
+    <!-- PUBLISH KIT -->
+    <section id="page-publish" class="page">
+      <div class="page-head">
+        <div><div class="eyebrow">STAGE 06</div><h2>Publish kit</h2><p class="sub">Generate a ready-to-paste YouTube title, description, tags and thumbnail from the approved story.</p></div>
+        <div class="page-actions">
+          <button id="generatePublish" class="btn primary">Generate publish kit</button>
+          <button id="savePublish" class="btn">Save edits</button>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>Title options</h3><span id="publishStatus" class="status"></span></div>
+          <div id="publishTitleOptions" class="title-options"></div>
+          <label>Selected title <input id="publishTitle" type="text"></label>
+          <button id="copyTitle" class="btn small">Copy title</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Thumbnail</h3><span id="publishThumbStatus" class="status"></span></div>
+          <label>Thumbnail text <input id="publishThumbText" type="text" maxlength="28" placeholder="3–5 catchy Hindi words"></label>
+          <div class="row wrap">
+            <button id="generateThumbnail" class="btn primary">Generate thumbnail</button>
+            <a id="publishThumbDownload" class="btn hidden" download>Download thumbnail</a>
+          </div>
+          <div class="image-frame"><img id="publishThumbPreview" class="media hidden" alt="YouTube thumbnail"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Description</h3><button id="copyDescription" class="btn small">Copy description</button></div>
+        <textarea id="publishDescription" rows="12" placeholder="Generated YouTube description..."></textarea>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Tags</h3><button id="copyTags" class="btn small">Copy tags</button></div>
+        <textarea id="publishTags" rows="3" placeholder="Hindi kahani, moral story, ..."></textarea>
+      </div>
+
+      <div class="card">
+        <div class="row wrap">
+          <button id="copyPublishAll" class="btn primary">Copy title + description + tags</button>
+          <span class="hint">Paste directly into YouTube Studio. The description includes the disclaimer, CTA and contact email.</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Generation log</h3></div>
+        <pre id="publishLog" class="log">No job running.</pre>
+      </div>
+    </section>
+
     <!-- SETTINGS -->
     <section id="page-settings" class="page">
       <div class="page-head">
@@ -376,6 +432,16 @@
           </div>
           <label class="check-label"><input id="setMusicEnabled" type="checkbox" checked> Use music bed</label>
           <label class="check-label"><input id="setSubtitles" type="checkbox" checked> Burn subtitles by default</label>
+        </div>
+
+        <div class="card">
+          <h3>Publish / YouTube</h3>
+          <label>Channel name <input id="setChannelName" type="text" placeholder="Osho Seekhe"></label>
+          <label>Tagline <input id="setChannelTagline" type="text" placeholder="हर कहानी, एक सीख"></label>
+          <label>Contact email <input id="setContactEmail" type="email" placeholder="you@example.com"></label>
+          <label>Hashtags <input id="setHashtags" type="text" placeholder="#HindiKahani #MoralStory"></label>
+          <label>Default CTA <textarea id="setCta" rows="2" placeholder="नई कहानी हर मंगलवार और शुक्रवार शाम 7 बजे।"></textarea></label>
+          <p class="hint">Used to generate the Publish kit title, description, tags and thumbnail.</p>
         </div>
       </div>
     </section>

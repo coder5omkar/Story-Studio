@@ -28,7 +28,7 @@ rebinding protection). Set `STUDIO_NO_BROWSER=1` to skip opening a browser and
 
 ## Workflow
 
-The rail shows five stages plus settings, and the gate card lists what is still
+The rail shows six stages plus settings, and the gate card lists what is still
 unapproved.
 
 1. **Story** — pick a local Ollama model or an OpenAI-compatible provider, enter
@@ -65,6 +65,19 @@ unapproved.
    one image or voice clip. Batch is blocked until every required gate is green.
 5. **Final review** — assemble the full video, watch it, then approve. Choose
    whether subtitles are burned in and the output filename.
+6. **Publish kit** — generate a ready-to-paste YouTube package from the story:
+   five Hindi title options, a 1200–1800 character description with hook, moral,
+   CTA, contact email, disclaimer and hashtags, 12–18 tags, thumbnail text and a
+   thumbnail image prompt. Edit any field, pick a title, then **Generate
+   thumbnail** to render a 1280×720 PNG in the project's current visual style
+   with a Devanagari text overlay. Use the copy buttons to paste directly into
+   YouTube Studio. Channel name, tagline, email, hashtags and CTA come from
+   **Settings → Publish / YouTube**.
+   - Thumbnail fonts: Nirmala UI on Windows, Noto Sans Devanagari on Linux, or
+     set `THUMBNAIL_FONT` to a TTF/TTC file. Changing the image style or publish
+     settings marks the publish kit stale so the thumbnail can be re-rendered.
+   - Thumbnails are saved to
+     `projects/<id>/studio/samples/thumbnail/thumbnail.png`.
 
 ### Visual styles
 
@@ -103,8 +116,8 @@ per-project, so you can duplicate a project if you want to compare two looks.
 
 Settings holds per-project defaults: LLM provider/model, ComfyUI URL, image
 style/character/negative prompt, voice reference and prosody, music
-prompt/volume, subtitle default, and the API key for an OpenAI-compatible
-provider.
+prompt/volume, subtitle default, publish channel identity, and the API key for
+an OpenAI-compatible provider.
 
 ## Providers
 
