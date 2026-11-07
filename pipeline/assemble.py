@@ -52,6 +52,33 @@ def make_clip(image: Path, dest: Path, duration: float, camera: str) -> None:
     )
 
 
+def probe_duration(path: Path) -> float | None:
+    proc = subprocess.run(
+        [
+            "ffprobe", "-v", "error", "-show_entries", "format=duration",
+            "-of", "default=nw=1:nk=1", str(path),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        return None
+    try:
+        return float(proc.stdout.strip())
+    except ValueError:
+        return None
+
+
+def clip_is_current(clip: Path, image: Path, sources_mtime: float, duration: float) -> bool:
+    """Reuse a clip only when it is newer than its inputs and has the right length."""
+    if not clip.exists() or clip.stat().st_size < 1024:
+        return False
+    if clip.stat().st_mtime < sources_mtime:
+        return False
+    actual = probe_duration(clip)
+    return actual is not None and abs(actual - duration) <= 0.25
+
+
 def concat_clips(clips: list[Path], dest: Path) -> None:
     list_file = dest.parent / "clips.txt"
     list_file.write_text(
@@ -143,6 +170,11 @@ def main() -> int:
 
     clips_dir = PROJECT / "video" / "clips"
     clips_dir.mkdir(parents=True, exist_ok=True)
+    scenes_path = PROJECT / "scenes.json"
+    sources_mtime = max(
+        timings_path.stat().st_mtime,
+        scenes_path.stat().st_mtime,
+    )
     clips: list[Path] = []
     for scene in scenes:
         if scene["id"] not in by_id:
@@ -154,8 +186,12 @@ def main() -> int:
             return 1
         clip = clips_dir / f"scene_{scene['id']:03d}.mp4"
         duration = float(by_id[scene["id"]]["duration"])
-        print(f"[clip {scene['id']:02d}/{len(scenes)}] {duration:.1f}s")
-        make_clip(image, clip, duration, scene.get("camera", ""))
+        clip_mtime = max(sources_mtime, image.stat().st_mtime)
+        if clip_is_current(clip, image, clip_mtime, duration):
+            print(f"[clip {scene['id']:02d}/{len(scenes)}] reuse {duration:.1f}s")
+        else:
+            print(f"[clip {scene['id']:02d}/{len(scenes)}] {duration:.1f}s")
+            make_clip(image, clip, duration, scene.get("camera", ""))
         clips.append(clip)
 
     silent = PROJECT / "video" / "silent.mp4"

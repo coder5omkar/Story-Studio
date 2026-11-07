@@ -1038,13 +1038,15 @@ def start_production(
     music_enabled = bool(state["settings"].get("music", {}).get("enabled", True))
     if not music_enabled:
         stages = [stage for stage in stages if stage != "music"]
-    need_music = music_enabled and ("music" in stages or "assemble" in stages)
+    paths = store.ensure_dirs(pid)
+    has_music = (paths["audio"] / "music.mp3").exists()
+    # Only require the music gate when music will actually be mixed into the video.
+    need_music = music_enabled and ("music" in stages or ("assemble" in stages and has_music))
     gates = check_gates(state, need_music=need_music)
     if not gates["ok"]:
         missing = [k for k, v in gates["gates"].items() if not v]
         raise RuntimeError("Approval gates missing: " + ", ".join(missing))
 
-    paths = store.ensure_dirs(pid)
     scenes = json.loads(paths["scenes"].read_text(encoding="utf-8"))
     total = max(1, len(scenes))
     store.set_stage(state, "production", "running", approved=False, notes="Batch production started")
@@ -1088,8 +1090,11 @@ def start_production(
                 args = ["--out-name", "final.mp4"]
                 if not subtitles:
                     args.append("--no-subs")
-                if not music_enabled:
+                has_music = (paths["audio"] / "music.mp3").exists()
+                if not music_enabled or not has_music:
                     args.append("--no-music")
+                if music_enabled and not has_music:
+                    job.log("Music file is missing; assembling without music.")
                 _run_script(pid, state, "assemble.py", args, job)
             base += span
             job.set_progress(base, f"{stage_name} done")
@@ -1123,8 +1128,11 @@ def render_final(
     args = ["--out-name", out_name]
     if not subtitles:
         args.append("--no-subs")
-    if not bool(state["settings"].get("music", {}).get("enabled", True)):
+    has_music = (paths["audio"] / "music.mp3").exists()
+    if not bool(state["settings"].get("music", {}).get("enabled", True)) or not has_music:
         args.append("--no-music")
+    if not has_music:
+        job.log("Music file is missing; assembling without music.")
     job.set_progress(5, "Assembling final video")
     _run_script(pid, state, "assemble.py", args, job)
     out = paths["video"] / out_name

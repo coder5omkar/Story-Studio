@@ -271,6 +271,10 @@ or `OPENAI_API_KEY`.
    - Approve every sample required by the gates.
 4. **Production**
    - Batch images, music, narration and assembly. Completed assets are skipped.
+   - Assembling again reuses existing clips unless their image, timing or scene
+     prompt changed, so a failed mix does not re-render every clip.
+   - Missing music no longer fails assembly; it finishes without music unless
+     you generate the Music stage.
    - Retry individual scenes without rerunning everything.
 5. **Final review**
    - Watch the assembled video, approve it, and download `final.mp4`.

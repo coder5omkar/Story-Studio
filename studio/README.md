@@ -63,6 +63,10 @@ unapproved.
 4. **Production** — batch images / music / narration / assembly with resumable
    skips. Existing assets are not regenerated. Per-scene retry buttons regenerate
    one image or voice clip. Batch is blocked until every required gate is green.
+   Assembling again reuses existing clips while their image, narration timing and
+   scene prompt are unchanged, so a failed final mix does not re-render the video
+   clips. If `audio/music.mp3` is missing, assembly automatically continues
+   without music instead of failing.
 5. **Final review** — assemble the full video, watch it, then approve. Choose
    whether subtitles are burned in and the output filename.
 6. **Publish kit** — generate a ready-to-paste YouTube package from the story:
