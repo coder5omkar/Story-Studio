@@ -181,6 +181,7 @@ def public_library(data: dict) -> dict:
     for genre in data.get("genres", []):
         item = {**genre, "idea_count": counts.get(genre.get("id", ""), 0)}
         genres.append(item)
+    genres.sort(key=lambda item: 0 if item.get("source") == "user" else 1)
     ideas = sorted(
         data.get("ideas", []),
         key=lambda item: str(item.get("created_at", "")),
@@ -319,6 +320,7 @@ def add_user_genre(data: dict, payload: dict) -> dict:
             "name": name,
             "name_hi": payload.get("name_hi"),
             "description": payload.get("description"),
+            "why_it_works": payload.get("why_it_works"),
             "audience": payload.get("audience"),
             "tone": payload.get("tone"),
             "channel_name": payload.get("channel_name"),

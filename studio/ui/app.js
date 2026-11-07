@@ -715,6 +715,7 @@ async function addGenre() {
         name,
         name_hi: $("newGenreNameHi").value.trim(),
         description: $("newGenreDesc").value.trim(),
+        why_it_works: $("newGenreWhy").value.trim(),
         audience: $("newGenreAudience").value.trim(),
         tone: $("newGenreTone").value.trim(),
         channel_name: $("newGenreChannel").value.trim(),
@@ -727,7 +728,7 @@ async function addGenre() {
       (genre) => genre.source === "user" && genre.name.toLowerCase() === name.toLowerCase()
     );
     if (created) S.selectedGenre = created.id;
-    ["newGenreName", "newGenreNameHi", "newGenreDesc", "newGenreAudience", "newGenreTone",
+    ["newGenreName", "newGenreNameHi", "newGenreDesc", "newGenreWhy", "newGenreAudience", "newGenreTone",
      "newGenreChannel", "newGenreTagline", "newGenreThemes"].forEach((id) => { $(id).value = ""; });
     toast("Genre saved");
   } catch (e) {
