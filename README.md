@@ -30,6 +30,8 @@ final video.
 - **Image samples** with SDXL, Z-Image Turbo, IPAdapter and FaceID.
 - **Music samples** with ACE-Step (optional; disabled in Settings if not wanted).
 - **Real subtitle/motion preview** rendered through the final `assemble.py` path.
+- **Scene-by-scene review** before assembly: see every image, listen to every
+  voice clip with autoplay-next, and edit the script or image prompt in place.
 - **Resumable batch production** with per-scene image/voice retry.
 - **Final review** with approval and optional subtitle burn-in.
 - **Publish kit** with five Hindi titles, a copy-paste YouTube description, tags
@@ -271,6 +273,10 @@ or `OPENAI_API_KEY`.
    - Approve every sample required by the gates.
 4. **Production**
    - Batch images, music, narration and assembly. Completed assets are skipped.
+   - **Scene review:** before assembling, step through every scene with its large
+     image, voice player and script. Autoplay-next plays the voices in order.
+     Edit the script or image prompt, save, and regenerate that scene's voice or
+     image. Saving keeps the style approvals; click **Approve plan** when done.
    - Assembling again reuses existing clips unless their image, timing or scene
      prompt changed, so a failed mix does not re-render every clip.
    - Missing music no longer fails assembly; it finishes without music unless

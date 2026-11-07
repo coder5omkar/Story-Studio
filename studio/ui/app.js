@@ -8,6 +8,10 @@ const S = {
   poll: null,
   health: null,
   selectedScene: 1,
+  reviewScene: null,
+  reviewRenderedScene: null,
+  reviewDirty: false,
+  reviewPlayAfterLoad: false,
   storyDirty: false,
   topicDirty: false,
   instructionsDirty: false,
@@ -349,6 +353,10 @@ async function selectProject(pid) {
   S.sceneDirty = false;
   S.settingsDirty = false;
   S.selectedScene = 1;
+  S.reviewScene = null;
+  S.reviewRenderedScene = null;
+  S.reviewDirty = false;
+  S.reviewPlayAfterLoad = false;
   S.voicePreviewText = "";
   $("voiceText").value = "";
   await loadProject();
@@ -1052,19 +1060,21 @@ function renderProduction() {
   $("sceneAssetSummary").textContent =
     `${status.filter((s) => s.image).length}/${status.length} images · ${status.filter((s) => s.audio).length}/${status.length} voice`;
   $("sceneStatusTable").querySelector("tbody").innerHTML = status.map((s) =>
-    `<tr>
+    `<tr class="review-row ${s.id === S.reviewScene ? "selected" : ""}" data-review="${s.id}">
       <td class="mono">${String(s.id).padStart(2, "0")}</td>
       <td>${s.words}</td>
       <td class="${s.image ? "ok" : "no"}">${s.image ? "ready" : "missing"}</td>
       <td class="${s.audio ? "ok" : "no"}">${s.audio ? "ready" : "missing"}</td>
       <td>${s.duration ? `${s.duration.toFixed(1)}s` : "—"}</td>
       <td>
-        <button class="btn ghost small" data-retry="image" data-scene="${s.id}">Image</button>
-        <button class="btn ghost small" data-retry="voice" data-scene="${s.id}">Voice</button>
+        <button class="btn ghost small" data-review="${s.id}">Review</button>
+        <button class="btn ghost small" data-retry="image" data-scene="${s.id}" title="Regenerate image">↻ Image</button>
+        <button class="btn ghost small" data-retry="voice" data-scene="${s.id}" title="Regenerate voice">↻ Voice</button>
       </td>
     </tr>`
   ).join("") || `<tr><td colspan="6">No scenes yet.</td></tr>`;
 
+  renderSceneReview();
   renderJobPanel();
 }
 
@@ -1076,7 +1086,246 @@ function renderJobPanel() {
   $("prodLog").textContent = job?.logs?.length ? job.logs.join("\n") : (job ? job.message : "No job running.");
 }
 
+// ---------------------------------------------------------------------------
+// Scene review
+// ---------------------------------------------------------------------------
+
+function currentReviewScene() {
+  const scenes = S.data?.scenes || [];
+  if (!scenes.length) return null;
+  if (!S.reviewScene || !scenes.some((s) => s.id === S.reviewScene)) {
+    S.reviewScene = scenes[0].id;
+  }
+  return scenes.find((s) => s.id === S.reviewScene) || scenes[0];
+}
+
+function reviewStatusFor(id) {
+  return (S.data?.scene_status || []).find((s) => s.id === id) || {};
+}
+
+function renderSceneReview() {
+  const scenes = S.data?.scenes || [];
+  const scene = currentReviewScene();
+  const busy = !!S.data?.active_job;
+  const plan = stageStatus("scenes");
+
+  if (!scene) {
+    $("reviewSceneLabel").textContent = "No scenes";
+    $("reviewStatusChips").innerHTML = "";
+    $("reviewImage").classList.add("hidden");
+    $("reviewImageEmpty").classList.remove("hidden");
+    $("reviewImageLink").removeAttribute("href");
+    $("reviewAudioRow").classList.add("hidden");
+    $("reviewAudioEmpty").classList.remove("hidden");
+    $("reviewNarration").value = "";
+    $("reviewPrompt").value = "";
+    $("reviewDirty").classList.add("hidden");
+    $("reviewPlanState").textContent = "Generate a scene plan first.";
+    $("reviewPrev").disabled = $("reviewNext").disabled = true;
+    $("reviewSave").disabled = $("reviewApprove").disabled = true;
+    $("reviewRegenVoice").disabled = $("reviewRegenImage").disabled = true;
+    $("reviewJump").value = 1;
+    S.reviewRenderedScene = null;
+    S.reviewDirty = false;
+    return;
+  }
+
+  const keepEdits = S.reviewDirty && S.reviewRenderedScene === scene.id;
+  const st = reviewStatusFor(scene.id);
+  const chapter = scene.chapter ? ` · Chapter ${scene.chapter}` : "";
+  $("reviewSceneLabel").textContent = `Scene ${scene.id} / ${scenes.length}${chapter}`;
+  $("reviewStatusChips").innerHTML = `
+    <span class="review-chip ${st.image ? "on" : "off"}">${st.image ? "image ready" : "no image"}</span>
+    <span class="review-chip ${st.audio ? "on" : "off"}">${st.audio ? "voice ready" : "no voice"}</span>
+    <span class="review-chip">${st.words || 0} words</span>
+    ${st.duration ? `<span class="review-chip">${st.duration.toFixed(1)}s</span>` : ""}`;
+
+  const image = $("reviewImage");
+  const imageLink = $("reviewImageLink");
+  if (st.image_url) {
+    if (image.getAttribute("src") !== st.image_url) image.src = st.image_url;
+    image.alt = `Scene ${scene.id} image`;
+    image.classList.remove("hidden");
+    $("reviewImageEmpty").classList.add("hidden");
+    imageLink.href = st.image_url;
+    imageLink.style.pointerEvents = "";
+    $("reviewImageName").textContent = `scene_${String(scene.id).padStart(3, "0")}.png`;
+  } else {
+    image.removeAttribute("src");
+    image.classList.add("hidden");
+    $("reviewImageEmpty").classList.remove("hidden");
+    imageLink.removeAttribute("href");
+    imageLink.style.pointerEvents = "none";
+    $("reviewImageName").textContent = "";
+  }
+
+  const audio = $("reviewAudio");
+  if (st.audio_url) {
+    $("reviewAudioRow").classList.remove("hidden");
+    $("reviewAudioEmpty").classList.add("hidden");
+    if (audio.dataset.url !== st.audio_url) {
+      audio.dataset.url = st.audio_url;
+      audio.src = st.audio_url;
+      audio.load();
+    }
+  } else {
+    audio.pause();
+    audio.removeAttribute("src");
+    delete audio.dataset.url;
+    audio.load();
+    $("reviewAudioRow").classList.add("hidden");
+    $("reviewAudioEmpty").classList.remove("hidden");
+  }
+
+  if (!keepEdits) {
+    $("reviewNarration").value = scene.narration || "";
+    $("reviewPrompt").value = scene.image_prompt || "";
+    $("reviewDirty").classList.add("hidden");
+    S.reviewDirty = false;
+  } else {
+    $("reviewDirty").classList.remove("hidden");
+  }
+  S.reviewRenderedScene = scene.id;
+
+  $("reviewJump").max = Math.max(...scenes.map((s) => s.id));
+  $("reviewJump").value = scene.id;
+  $("reviewPrev").disabled = scenes[0].id === scene.id;
+  $("reviewNext").disabled = scenes.at(-1).id === scene.id;
+  $("reviewSave").disabled = busy;
+  $("reviewRegenVoice").disabled = busy;
+  $("reviewRegenImage").disabled = busy;
+  $("reviewApprove").disabled = busy || plan === "approved" || S.reviewDirty;
+
+  $("reviewPlanState").textContent = plan === "approved"
+    ? "Scene plan is approved. Review the assets, then assemble."
+    : `Scene plan is ${statusText(plan).toLowerCase()}. Click Approve plan once the script is final.`;
+
+  if (S.reviewPlayAfterLoad && st.audio_url) {
+    S.reviewPlayAfterLoad = false;
+    audio.play().catch(() => {});
+  }
+}
+
+function updateReviewDirty() {
+  const scene = currentReviewScene();
+  if (!scene) return false;
+  const dirty =
+    $("reviewNarration").value !== (scene.narration || "") ||
+    $("reviewPrompt").value !== (scene.image_prompt || "");
+  S.reviewDirty = dirty;
+  $("reviewDirty").classList.toggle("hidden", !dirty);
+  const plan = stageStatus("scenes");
+  $("reviewApprove").disabled = !!S.data?.active_job || plan === "approved" || dirty;
+  return dirty;
+}
+
+function pickReviewScene(id, { force = false } = {}) {
+  if (S.reviewDirty && !force && !window.confirm("Discard unsaved changes in this scene?")) {
+    return false;
+  }
+  S.reviewScene = Number(id);
+  S.reviewDirty = false;
+  renderSceneReview();
+  $$("#sceneStatusTable tr[data-review]").forEach((row) => {
+    row.classList.toggle("selected", Number(row.dataset.review) === S.reviewScene);
+  });
+  return true;
+}
+
+function stepReview(delta) {
+  const scenes = S.data?.scenes || [];
+  const index = scenes.findIndex((s) => s.id === S.reviewScene);
+  const next = scenes[index + delta];
+  if (next) pickReviewScene(next.id);
+}
+
+function jumpReviewScene() {
+  const scenes = S.data?.scenes || [];
+  if (!scenes.length) return;
+  const raw = Number($("reviewJump").value);
+  const target = scenes.find((s) => s.id === raw) || scenes[Math.max(0, Math.min(scenes.length - 1, raw - 1))];
+  if (target) pickReviewScene(target.id);
+}
+
+function playReviewAudio() {
+  const audio = $("reviewAudio");
+  if (audio.getAttribute("src")) audio.play().catch(() => {});
+}
+
+async function saveSceneReview({ silent = false } = {}) {
+  const scene = currentReviewScene();
+  if (!scene) return false;
+  const narration = $("reviewNarration").value.trim();
+  const imagePrompt = $("reviewPrompt").value.trim();
+  if (!narration) {
+    toast("Script cannot be empty", "error");
+    return false;
+  }
+  if (!imagePrompt) {
+    toast("Image prompt cannot be empty", "error");
+    return false;
+  }
+  if (!updateReviewDirty()) {
+    if (!silent) toast("No changes to save");
+    return true;
+  }
+  const narrationChanged = narration !== (scene.narration || "");
+  try {
+    await api(`/api/projects/${S.pid}/scenes/${scene.id}`, {
+      method: "PUT",
+      body: { narration, image_prompt: imagePrompt },
+    });
+    S.reviewDirty = false;
+    await loadProject();
+    if (!silent) {
+      toast(narrationChanged
+        ? `Scene ${scene.id} saved — regenerate its voice to hear the new script`
+        : `Scene ${scene.id} saved`);
+    }
+    return true;
+  } catch (e) {
+    toast(e.message, "error");
+    return false;
+  }
+}
+
+async function approveScenePlan() {
+  if (S.reviewDirty) return toast("Save this scene before approving the plan", "error");
+  try {
+    await api(`/api/projects/${S.pid}/scenes/approve`, { method: "POST" });
+    toast("Scene plan approved");
+    await loadProject();
+  } catch (e) {
+    const failed = e.detail?.validation?.checks?.filter((c) => c.status === "fail") || [];
+    toast(failed.length
+      ? `Cannot approve: ${failed.map((c) => c.label).join(", ")}`
+      : e.message, "error");
+  }
+}
+
+async function regenerateReview(kind) {
+  const scene = currentReviewScene();
+  if (!scene) return;
+  if (S.reviewDirty && !(await saveSceneReview({ silent: true }))) return;
+  try {
+    const res = await api(`/api/projects/${S.pid}/production/retry`, {
+      method: "POST",
+      body: { scene_id: scene.id, kind },
+    });
+    if (kind === "voice") S.reviewPlayAfterLoad = true;
+    startJob(res);
+    toast(`${kind === "voice" ? "Voice" : "Image"} regeneration started for scene ${scene.id}`);
+  } catch (e) {
+    toast(e.message, "error");
+  }
+}
+
 async function startProduction() {
+  if (S.reviewDirty) {
+    toast("Save or discard your scene changes before starting production", "error");
+    showPage("production");
+    return;
+  }
   const stages = [];
   const musicEnabled = S.data.state.settings.music.enabled !== false;
   if ($("prodImages").checked) stages.push("images");
@@ -1095,6 +1344,14 @@ async function startProduction() {
 }
 
 async function retryScene(sceneId, kind) {
+  if (S.reviewDirty) {
+    if (sceneId === S.reviewScene) {
+      if (!(await saveSceneReview({ silent: true }))) return;
+    } else {
+      toast("Save or discard the current scene changes before regenerating another scene", "error");
+      return;
+    }
+  }
   try {
     const res = await api(`/api/projects/${S.pid}/production/retry`, {
       method: "POST",
@@ -1634,8 +1891,33 @@ function bind() {
 
   $("startProduction").addEventListener("click", startProduction);
   $("sceneStatusTable").addEventListener("click", (e) => {
-    const btn = e.target.closest("[data-retry]");
-    if (btn) retryScene(Number(btn.dataset.scene), btn.dataset.retry);
+    const retry = e.target.closest("[data-retry]");
+    if (retry) {
+      retryScene(Number(retry.dataset.scene), retry.dataset.retry);
+      return;
+    }
+    const pick = e.target.closest("[data-review]");
+    if (pick) pickReviewScene(Number(pick.dataset.review));
+  });
+  $("reviewPrev").addEventListener("click", () => stepReview(-1));
+  $("reviewNext").addEventListener("click", () => stepReview(1));
+  $("reviewJump").addEventListener("change", jumpReviewScene);
+  $("reviewSave").addEventListener("click", () => saveSceneReview());
+  $("reviewApprove").addEventListener("click", approveScenePlan);
+  $("reviewRegenVoice").addEventListener("click", () => regenerateReview("voice"));
+  $("reviewRegenImage").addEventListener("click", () => regenerateReview("image"));
+  $("reviewNarration").addEventListener("input", updateReviewDirty);
+  $("reviewPrompt").addEventListener("input", updateReviewDirty);
+  $("reviewAudio").addEventListener("ended", () => {
+    if (!$("reviewAutoplay").checked) return;
+    if (S.reviewDirty) {
+      toast("Save this scene before moving to the next one", "error");
+      return;
+    }
+    const scenes = S.data?.scenes || [];
+    const index = scenes.findIndex((s) => s.id === S.reviewScene);
+    const next = scenes[index + 1];
+    if (next && pickReviewScene(next.id, { force: true })) playReviewAudio();
   });
 
   $("renderFinal").addEventListener("click", renderFinalVideo);

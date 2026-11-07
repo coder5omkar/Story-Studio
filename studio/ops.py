@@ -661,6 +661,41 @@ def save_scenes(pid: str, state: dict, scenes: list) -> dict:
     return validation
 
 
+SCENE_EDIT_FIELDS = ("narration", "image_prompt", "camera", "mood")
+
+
+def save_scene_review(pid: str, state: dict, scene_id: int, payload: dict) -> dict:
+    """Update one scene from the production review panel without resetting style approvals."""
+    paths = store.ensure_dirs(pid)
+    if not paths["scenes"].exists():
+        raise RuntimeError("No scene plan to edit")
+    scenes = json.loads(paths["scenes"].read_text(encoding="utf-8"))
+    scene = next((s for s in scenes if int(s.get("id", -1)) == int(scene_id)), None)
+    if scene is None:
+        raise RuntimeError(f"Scene {scene_id} not found")
+
+    for field in SCENE_EDIT_FIELDS:
+        if field in payload:
+            scene[field] = str(payload.get(field) or "").strip()
+    if not scene.get("narration"):
+        raise RuntimeError("Narration cannot be empty")
+    if not scene.get("image_prompt"):
+        raise RuntimeError("Image prompt cannot be empty")
+
+    validation = qa.validate_scenes(scenes)
+    store.version_artifact(pid, state, "scenes", paths["scenes"])
+    paths["scenes"].write_text(json.dumps(scenes, ensure_ascii=False, indent=2), encoding="utf-8")
+    store.set_stage(
+        state, "scenes", "draft", approved=False,
+        notes=f"Scene {scene_id} edited in review", validation=validation,
+    )
+    # Sample approvals describe the chosen style; keep them. Only the
+    # assembled deliverable is stale.
+    store.invalidate(state, ["production", "final", "publish"], f"scene {scene_id} edited")
+    store.save_state(pid, state)
+    return {"scene": scene, "validation": validation}
+
+
 RESTYLE_SYSTEM = (
     "You rewrite scene descriptions to match a specific visual style for a Hindi story video. "
     "You keep the setting, action and emotion from the narration, and describe one concrete "
@@ -1349,5 +1384,10 @@ def retry_scene(pid: str, state: dict, job: Job, *, scene_id: int, kind: str) ->
         _run_script(pid, state, "tts.py", ["--ids", str(scene_id), "--force"], job, python=_tts_py())
     else:
         raise RuntimeError(f"Unknown retry kind: {kind}")
+    store.invalidate(
+        state, ["production", "final", "publish"],
+        f"scene {scene_id} {kind} regenerated",
+    )
+    store.save_state(pid, state)
     job.set_progress(100, f"Scene {scene_id} {kind} regenerated")
     return {"scene_id": scene_id, "kind": kind}

@@ -119,6 +119,19 @@ def _project_payload(pid: str) -> dict:
             }
     active = manager.active_for_project(pid)
     music_path = paths["audio"] / "music.mp3"
+    scene_status = qa.summarize_scene_status(scenes, paths["root"])
+    for item in scene_status:
+        sid = int(item["id"])
+        image = paths["root"] / "images" / f"scene_{sid:03d}.png"
+        audio = paths["root"] / "audio" / f"scene_{sid:03d}.wav"
+        if item.get("image"):
+            item["image_url"] = _versioned_media_url(
+                pid, f"images/scene_{sid:03d}.png", image
+            )
+        if item.get("audio"):
+            item["audio_url"] = _versioned_media_url(
+                pid, f"audio/scene_{sid:03d}.wav", audio
+            )
     publish = json.loads(json.dumps(state["stages"].get("publish", {})))
     if publish.get("thumbnail_path"):
         publish["thumbnail_url"] = _versioned_media_url(
@@ -135,7 +148,7 @@ def _project_payload(pid: str) -> dict:
         "story_validation": story_validation,
         "scenes": scenes,
         "scenes_validation": scenes_validation,
-        "scene_status": qa.summarize_scene_status(scenes, paths["root"]),
+        "scene_status": scene_status,
         "samples": _sample_payload(pid, state),
         "project_audio": {
             "music": _versioned_media_url(pid, "audio/music.mp3", music_path) if music_path.exists() else "",
@@ -388,6 +401,15 @@ def save_scenes(pid: str, payload: dict = Body(...)) -> dict:
     except Exception as exc:
         raise _fail(exc)
     return {"validation": validation}
+
+
+@app.put("/api/projects/{pid}/scenes/{scene_id}")
+def save_single_scene(pid: str, scene_id: int, payload: dict = Body(...)) -> dict:
+    state = _project(pid)
+    try:
+        return ops.save_scene_review(pid, state, scene_id, payload)
+    except Exception as exc:
+        raise _fail(exc)
 
 
 @app.post("/api/projects/{pid}/scenes/approve")

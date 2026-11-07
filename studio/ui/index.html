@@ -246,7 +246,7 @@
       </div>
 
       <div class="card slim">
-        <div class="row wrap align-end">
+        <div class="row wrap align-end stage-checks">
           <label class="check-label"><input id="prodImages" type="checkbox" checked> Images</label>
           <label class="check-label"><input id="prodMusic" type="checkbox" checked> Music</label>
           <label class="check-label"><input id="prodTts" type="checkbox" checked> Voice</label>
@@ -256,6 +256,61 @@
       </div>
 
       <div id="productionGates" class="card"></div>
+
+      <div class="card scene-review">
+        <div class="card-head">
+          <div>
+            <h3>Scene review</h3>
+            <span class="hint">Watch the image, listen to the voice and read the script before assembling.</span>
+          </div>
+          <div class="review-nav">
+            <span id="reviewSceneLabel" class="mono muted">Scene 1 / 1</span>
+            <button id="reviewPrev" class="btn small" type="button">← Prev</button>
+            <button id="reviewNext" class="btn small" type="button">Next →</button>
+          </div>
+        </div>
+        <div class="scene-review-grid">
+          <div class="scene-review-media">
+            <a id="reviewImageLink" class="review-image-frame" target="_blank" rel="noopener" title="Open full image">
+              <img id="reviewImage" class="hidden" alt="Scene image">
+              <span id="reviewImageEmpty" class="review-empty">No image yet. Generate images first.</span>
+            </a>
+            <div class="row wrap review-media-meta">
+              <span id="reviewStatusChips" class="review-chips"></span>
+              <span id="reviewImageName" class="hint mono"></span>
+            </div>
+          </div>
+          <div class="scene-review-side">
+            <div id="reviewAudioRow" class="review-audio-row">
+              <audio id="reviewAudio" class="review-audio" controls preload="metadata"></audio>
+              <label class="check-label"><input id="reviewAutoplay" type="checkbox" checked> Autoplay next</label>
+            </div>
+            <p id="reviewAudioEmpty" class="hint">No voice clip yet. Generate narration first.</p>
+            <label>Script (narration)
+              <textarea id="reviewNarration" rows="6" placeholder="Scene narration..."></textarea>
+            </label>
+            <label>English image prompt
+              <textarea id="reviewPrompt" rows="3" placeholder="English image prompt..."></textarea>
+            </label>
+            <div class="review-actions">
+              <div class="row wrap">
+                <button id="reviewSave" class="btn primary" type="button">Save scene</button>
+                <button id="reviewApprove" class="btn" type="button">Approve plan</button>
+                <span id="reviewDirty" class="hint hidden">Unsaved changes</span>
+              </div>
+              <div class="row wrap review-regen">
+                <button id="reviewRegenVoice" class="btn" type="button">Regenerate voice</button>
+                <button id="reviewRegenImage" class="btn" type="button">Regenerate image</button>
+              </div>
+            </div>
+            <p id="reviewPlanState" class="hint"></p>
+          </div>
+        </div>
+        <div class="row wrap review-footer">
+          <label>Jump to scene <input id="reviewJump" type="number" min="1" value="1"></label>
+          <span id="reviewPlaybackHint" class="hint">Tip: enable Autoplay next to listen through the story scene by scene.</span>
+        </div>
+      </div>
 
       <div class="card">
         <div class="card-head"><h3>Live job</h3><span id="prodPct" class="mono muted">idle</span></div>
