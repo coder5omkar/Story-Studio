@@ -28,9 +28,26 @@ rebinding protection). Set `STUDIO_NO_BROWSER=1` to skip opening a browser and
 
 ## Workflow
 
-The rail shows six stages plus settings, and the gate card lists what is still
-unapproved.
+The rail starts with the **Story table**, then six production stages plus
+settings, and the gate card lists what is still unapproved.
 
+0. **Story table** — pick what to produce without inventing a premise:
+   - **Suggest 5 genres** asks Claude for five distinct, channel-ready genre
+     pillars. Each has a Hindi channel name, tagline, audience, repeatable story
+     engines and example titles.
+   - **Add your own genre** saves a custom pillar alongside the AI suggestions.
+   - Select a genre and **Generate 3 story ideas**. Each idea is a full blueprint:
+     Hindi hook, logline, 300–450-word premise, explicit ending, protagonist,
+     obstacle, emotional arc, retention beats, chapter beats and thumbnail moment.
+   - **Use this story** creates a project pre-filled with the blueprint and genre
+     channel; **Use & write full story** also starts the first draft with the
+     selected ideation model.
+   - Multiple stories can be generated and produced from the same genre. The
+     library is saved in `studio/.story_ideas.json` (gitignored), and idea status
+     changes to *Project created* after selection.
+   - Claude Haiku 5.5 is the default ideation model. It is also copied into the
+     project's Story settings, so the full draft uses the same model unless you
+     change it.
 1. **Story** — pick a local Ollama model or an OpenAI-compatible provider, enter
    a premise, and optionally add story instructions (tone, genre, ending, themes
    to include or avoid). The prompt uses your topic and instructions plus only

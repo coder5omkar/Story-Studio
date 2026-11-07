@@ -34,6 +34,9 @@ final video.
   voice clip with autoplay-next, and edit the script or image prompt in place.
 - **Resumable batch production** with per-scene image/voice retry.
 - **Final review** with approval and optional subtitle burn-in.
+- **Story table** with five LLM-suggested genre channels, custom genres, and
+  three full story blueprints per genre. Pick a blueprint to create a project,
+  or let it write the first draft immediately.
 - **Publish kit** with five Hindi titles, a copy-paste YouTube description, tags
   and a 1280×720 thumbnail rendered in the project's visual style.
 - **Local-first security**: binds to `127.0.0.1`; API keys are stored locally in
@@ -247,6 +250,14 @@ or `OPENAI_API_KEY`.
 
 ## Workflow
 
+0. **Story table**
+   - Let Claude suggest five distinct genre channels, or add your own.
+   - Generate three full story blueprints per genre, each with hook, ending,
+     retention beats, chapter beats and thumbnail moment.
+   - **Use this story** creates the project; **Use & write full story** starts the
+     draft with Claude Haiku 5.5 (or the ideation model you choose).
+   - The genre's channel name and tagline pre-fill the project's Publish kit.
+   - The local idea library is saved in `studio/.story_ideas.json`.
 1. **Story**
    - Create a project with a title, premise, minutes and chapters.
    - Add optional **Story instructions**: genre, tone, ending, themes to include

@@ -323,8 +323,14 @@ def _samples_status(state: dict) -> str:
     return "empty"
 
 
-def create_project(title: str, topic: str = "", minutes: float = 5, chapters: int = 5) -> dict:
-    pid = slugify(title)
+def create_project(
+    title: str,
+    topic: str = "",
+    minutes: float = 5,
+    chapters: int = 5,
+    slug_source: str | None = None,
+) -> dict:
+    pid = slugify(slug_source or title)
     candidate = pid
     counter = 2
     while (PROJECTS_DIR / candidate).exists():

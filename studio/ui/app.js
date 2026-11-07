@@ -2,7 +2,12 @@ const S = {
   projects: [],
   pid: null,
   data: null,
-  page: "story",
+  page: "ideas",
+  ideas: null,
+  selectedGenre: null,
+  ideaBusy: false,
+  ideaBusyMsg: "",
+  ideaSettingsReady: false,
   jobId: null,
   job: null,
   poll: null,
@@ -297,11 +302,14 @@ async function boot() {
   bind();
   renderStyleGallery();
   const hashPage = location.hash.replace(/^#/, "");
-  if (["story", "scenes", "samples", "production", "final", "publish", "settings"].includes(hashPage)) {
+  if (["ideas", "story", "scenes", "samples", "production", "final", "publish", "settings"].includes(hashPage)) {
     S.page = hashPage;
   }
   await loadHealth();
+  await loadIdeas();
   await loadProjects();
+  await loadIdeaModels();
+  showPage(S.page);
   setInterval(loadHealth, 15000);
 }
 
@@ -398,7 +406,12 @@ function renderEmpty() {
 // ---------------------------------------------------------------------------
 
 function renderAll() {
-  if (!S.data) return renderEmpty();
+  if (!S.data) {
+    renderEmpty();
+    renderIdeas();
+    showPage(S.page);
+    return;
+  }
   renderTop();
   renderRail();
   renderStory();
@@ -407,6 +420,7 @@ function renderAll() {
   renderProduction();
   renderFinal();
   renderPublish();
+  renderIdeas();
   renderSettings();
   showPage(S.page);
 }
@@ -466,6 +480,314 @@ function showPage(page) {
   $$(".page").forEach((el) => el.classList.toggle("active", el.id === `page-${page}`));
   $$(".stage-link").forEach((el) => el.classList.toggle("active", el.dataset.page === page));
   if (location.hash !== `#${page}`) history.replaceState(null, "", `#${page}`);
+}
+
+// ---------------------------------------------------------------------------
+// Story table / idea lab
+// ---------------------------------------------------------------------------
+
+async function loadIdeas() {
+  try {
+    S.ideas = await api("/api/ideas");
+  } catch (e) {
+    console.warn(e);
+    if (!S.ideas) S.ideas = { genres: [], ideas: [], settings: {} };
+  }
+  const genres = S.ideas?.genres || [];
+  if (!S.selectedGenre) {
+    const newest = [...(S.ideas?.ideas || [])].sort((a, b) =>
+      String(b.created_at || "").localeCompare(String(a.created_at || ""))
+    )[0];
+    S.selectedGenre = newest?.genre_id || genres[0]?.id || null;
+  }
+  if (!genres.some((genre) => genre.id === S.selectedGenre)) {
+    S.selectedGenre = genres[0]?.id || null;
+  }
+  renderIdeas();
+}
+
+function initIdeaSettings() {
+  if (S.ideaSettingsReady) return;
+  const settings = S.ideas?.settings || {};
+  if (settings.provider) $("ideaProvider").value = settings.provider;
+  if (!$("ideaProvider").value) $("ideaProvider").value = "opencode-go";
+  if (settings.model) $("ideaModel").value = settings.model;
+  S.ideaSettingsReady = true;
+}
+
+function ideaLlmPayload() {
+  const provider = $("ideaProvider").value;
+  return {
+    provider,
+    model: $("ideaModel").value.trim(),
+    api_base: providerBase(provider),
+    temperature: 0.9,
+  };
+}
+
+function ideaModelReady() {
+  if (!$("ideaModel").value.trim()) {
+    toast("Choose an ideation model first", "error");
+    return false;
+  }
+  const provider = $("ideaProvider").value;
+  if (provider !== "ollama" && S.health && S.health.secrets === false) {
+    toast("No API key saved. Add your OpenCode key in Settings.", "error");
+    return false;
+  }
+  return true;
+}
+
+function setIdeaBusy(message) {
+  S.ideaBusy = !!message;
+  S.ideaBusyMsg = message || "";
+  renderIdeas();
+}
+
+function ideaParagraphs(text) {
+  return String(text || "")
+    .split(/\n{2,}/)
+    .map((part) => `<p>${esc(part).replace(/\n/g, "<br>")}</p>`)
+    .join("");
+}
+
+function renderIdeas() {
+  initIdeaSettings();
+  const data = S.ideas || { genres: [], ideas: [], settings: {} };
+  const genres = data.genres || [];
+  const ideas = data.ideas || [];
+  if (!S.selectedGenre || !genres.some((genre) => genre.id === S.selectedGenre)) {
+    S.selectedGenre = genres[0]?.id || null;
+  }
+  const selected = genres.find((genre) => genre.id === S.selectedGenre) || null;
+  const selectedIdeas = selected
+    ? ideas.filter((idea) => idea.genre_id === selected.id)
+    : [];
+
+  $("suggestGenres").disabled = S.ideaBusy;
+  $("addGenre").disabled = S.ideaBusy;
+  $("generateIdeas").disabled = S.ideaBusy || !selected;
+  $("ideasStatus").textContent = S.ideaBusy ? (S.ideaBusyMsg || "Working…") : "";
+  $("genreSummary").textContent = genres.length
+    ? `${genres.length} channels · ${ideas.length} story ideas · ${ideas.filter((idea) => !idea.project_id).length} ready to pick`
+    : "No genres yet.";
+
+  const badge = $("badge-ideas");
+  if (badge) badge.textContent = ideas.length ? `${ideas.length} ideas` : "lab";
+
+  $("genreGrid").innerHTML = genres.length
+    ? genres.map((genre) => {
+        return `<button type="button" class="genre-card ${genre.id === S.selectedGenre ? "selected" : ""}" data-genre-id="${esc(genre.id)}">
+          <span class="genre-card-top">
+            <span class="genre-name">${esc(genre.name)}</span>
+            <span class="genre-source ${genre.source === "user" ? "" : "llm"}">${genre.source === "user" ? "YOURS" : "AI"}</span>
+          </span>
+          <span class="genre-hi">${esc(genre.name_hi || genre.name)}</span>
+          <span class="genre-desc">${esc(genre.description || genre.why_it_works || "Story channel pillar")}</span>
+          <span class="genre-meta">${esc(genre.channel_name || "Channel TBD")} · ${genre.idea_count || 0} idea${(genre.idea_count || 0) === 1 ? "" : "s"}</span>
+        </button>`;
+      }).join("")
+    : `<p class="hint">Click <b>Suggest 5 genres</b> to let Claude design five separate channel pillars.</p>`;
+
+  if (!selected) {
+    $("selectedGenreName").textContent = "Choose a genre";
+    $("selectedGenreMeta").textContent = "Select a genre above to see its story bank.";
+    $("genreBrief").innerHTML = "";
+    $("ideaList").innerHTML = `<div class="empty-state"><strong>No genre selected</strong>Suggest five genres, then generate three story ideas for the one you want to build.</div>`;
+    return;
+  }
+
+  const meta = [selected.name_hi, selected.channel_name, selected.audience].filter(Boolean).join(" · ");
+  $("selectedGenreName").textContent = selected.name;
+  $("selectedGenreMeta").textContent = meta || "Story bank";
+  $("genreBrief").innerHTML = `
+    <div class="brief-item"><b>Story engines</b>${esc((selected.themes || []).join(" · ") || selected.description || "—")}</div>
+    <div class="brief-item"><b>Why listeners stay</b>${esc(selected.why_it_works || selected.description || "—")}</div>
+    <div class="brief-item"><b>Audience</b>${esc(selected.audience || "—")}</div>`;
+
+  if (!selectedIdeas.length) {
+    $("ideaList").innerHTML = `<div class="idea-empty">
+      <b>No story ideas for this genre yet.</b><br>
+      Set the target length above and click <b>Generate 3 story ideas</b>. Claude will write three full blueprints with hooks, twists and chapter cliffhangers.
+    </div>`;
+    return;
+  }
+
+  $("ideaList").innerHTML = selectedIdeas.map((idea) => {
+    const projectId = String(idea.project_id || "");
+    const breaks = (idea.chapter_breaks || []);
+    const beats = (idea.retention_beats || []);
+    return `<article class="idea-card">
+      <div class="idea-head">
+        <div>
+          <h4 class="idea-title">${esc(idea.title)}</h4>
+          <div class="idea-title-en">${esc(idea.title_en || "")}</div>
+        </div>
+        <div class="idea-badges">
+          <span class="review-chip">${idea.minutes || 10} min</span>
+          <span class="review-chip">${idea.chapters || 5} chapters</span>
+          <span class="idea-status ${projectId ? "project" : ""}">${projectId ? "Project created" : "Idea"}</span>
+        </div>
+      </div>
+      <p class="idea-logline">${esc(idea.logline || "")}</p>
+      ${idea.hook ? `<div class="idea-hook"><b>Hook:</b> ${esc(idea.hook)}</div>` : ""}
+      <details>
+        <summary>Read full plot blueprint</summary>
+        <div class="idea-details">
+          <h4>Premise</h4>
+          ${ideaParagraphs(idea.premise)}
+          ${idea.ending ? `<h4>Ending / resolution</h4>${ideaParagraphs(idea.ending)}` : ""}
+          ${idea.protagonist ? `<h4>Protagonist</h4><p>${esc(idea.protagonist)}</p>` : ""}
+          ${idea.antagonist ? `<h4>Antagonist / obstacle</h4><p>${esc(idea.antagonist)}</p>` : ""}
+          ${idea.emotional_arc ? `<h4>Emotional arc</h4><p>${esc(idea.emotional_arc)}</p>` : ""}
+          ${beats.length ? `<h4>Retention beats</h4><ul>${beats.map((beat) => `<li>${esc(beat)}</li>`).join("")}</ul>` : ""}
+          ${breaks.length ? `<h4>Chapter cliffhangers</h4><ol>${breaks.map((brk) => `<li>${esc(brk)}</li>`).join("")}</ol>` : ""}
+          ${idea.why_it_hooks ? `<h4>Why it hooks</h4><p>${esc(idea.why_it_hooks)}</p>` : ""}
+          ${idea.thumbnail_moment ? `<h4>Thumbnail moment</h4><p>${esc(idea.thumbnail_moment)}</p>` : ""}
+        </div>
+      </details>
+      <div class="idea-actions">
+        ${projectId
+          ? `<button class="btn primary" type="button" data-open-project="${esc(projectId)}">Open project</button>`
+          : `<button class="btn primary" type="button" data-use-idea="${esc(idea.id)}" data-generate="0">Use this story</button>
+             <button class="btn" type="button" data-use-idea="${esc(idea.id)}" data-generate="1">Use &amp; write full story</button>`}
+      </div>
+    </article>`;
+  }).join("");
+}
+
+async function loadIdeaModels() {
+  const provider = $("ideaProvider").value || "opencode-go";
+  const base = providerBase(provider);
+  $("ideaModelHint").textContent = "Loading models...";
+  try {
+    const res = await api(`/api/models?provider=${encodeURIComponent(provider)}&base_url=${encodeURIComponent(base)}`);
+    const shown = (res.models || []).length ? res.models : (res.suggestions || []);
+    $("ideaModelOptions").innerHTML = shown.map((model) => `<option value="${esc(model)}"></option>`).join("");
+    if (res.ok) {
+      const keyNote = provider !== "ollama" && S.health && S.health.secrets === false
+        ? " · no API key saved"
+        : "";
+      $("ideaModelHint").textContent = `${shown.length} models · Claude Haiku 5.5 recommended${keyNote}`;
+    } else {
+      $("ideaModelHint").textContent = `${res.error || "Could not load models"} · Claude Haiku 5.5 still works if your key is valid.`;
+    }
+  } catch (e) {
+    $("ideaModelHint").textContent = e.message;
+  }
+}
+
+async function suggestGenres() {
+  if (S.ideaBusy || !ideaModelReady()) return;
+  if ((S.ideas?.ideas || []).length) {
+    const ok = window.confirm(
+      "Suggest five new genre channels? Genres that already have story ideas are kept; unused AI genres are replaced."
+    );
+    if (!ok) return;
+  }
+  setIdeaBusy("Claude is designing 5 channel-ready genres…");
+  try {
+    const data = await api("/api/ideas/genres/suggest", {
+      method: "POST",
+      body: ideaLlmPayload(),
+    });
+    S.ideas = data;
+    if (!data.genres.some((genre) => genre.id === S.selectedGenre)) {
+      S.selectedGenre = data.genres[0]?.id || null;
+    }
+    toast("Five genre channels are ready");
+  } catch (e) {
+    toast(e.message, "error");
+  } finally {
+    setIdeaBusy("");
+  }
+}
+
+async function addGenre() {
+  if (S.ideaBusy) return;
+  const name = $("newGenreName").value.trim();
+  if (!name) return toast("Genre name is required", "error");
+  setIdeaBusy("Saving your genre…");
+  try {
+    const data = await api("/api/ideas/genres", {
+      method: "POST",
+      body: {
+        name,
+        name_hi: $("newGenreNameHi").value.trim(),
+        description: $("newGenreDesc").value.trim(),
+        audience: $("newGenreAudience").value.trim(),
+        tone: $("newGenreTone").value.trim(),
+        channel_name: $("newGenreChannel").value.trim(),
+        channel_tagline: $("newGenreTagline").value.trim(),
+        themes: $("newGenreThemes").value.trim(),
+      },
+    });
+    S.ideas = data;
+    const created = data.genres.find(
+      (genre) => genre.source === "user" && genre.name.toLowerCase() === name.toLowerCase()
+    );
+    if (created) S.selectedGenre = created.id;
+    ["newGenreName", "newGenreNameHi", "newGenreDesc", "newGenreAudience", "newGenreTone",
+     "newGenreChannel", "newGenreTagline", "newGenreThemes"].forEach((id) => { $(id).value = ""; });
+    toast("Genre saved");
+  } catch (e) {
+    toast(e.message, "error");
+  } finally {
+    setIdeaBusy("");
+  }
+}
+
+async function generateGenreIdeas() {
+  if (S.ideaBusy || !S.selectedGenre || !ideaModelReady()) return;
+  const minutes = Number($("ideaMinutes").value || 10);
+  const chapters = Number($("ideaChapters").value || 5);
+  setIdeaBusy("Claude is writing 3 plot blueprints…");
+  try {
+    const res = await api(`/api/ideas/genres/${S.selectedGenre}/ideas`, {
+      method: "POST",
+      body: { ...ideaLlmPayload(), minutes, chapters },
+    });
+    S.ideas = res.library;
+    toast(`${res.ideas.length} story ideas ready`);
+    setTimeout(() => $("genreWorkspace").scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+  } catch (e) {
+    toast(e.message, "error");
+  } finally {
+    setIdeaBusy("");
+  }
+}
+
+async function openIdeaProject(pid) {
+  S.pid = pid;
+  S.data = null;
+  await loadProjects();
+  showPage("story");
+}
+
+async function useIdea(ideaId, generate) {
+  if (S.ideaBusy || !ideaModelReady()) return;
+  setIdeaBusy(generate ? "Creating the project and starting the first draft…" : "Creating the project…");
+  try {
+    const res = await api(`/api/ideas/${ideaId}/project`, {
+      method: "POST",
+      body: { generate, ...ideaLlmPayload() },
+    });
+    S.pid = res.project_id;
+    S.data = null;
+    await loadProjects();
+    showPage("story");
+    if (res.job) startJob({ job: res.job });
+    toast(res.existing
+      ? "Opening the existing project"
+      : generate
+        ? "Project created. Writing the full story with Claude Haiku 5.5…"
+        : "Project created. Review the blueprint, then generate the story.");
+    await loadIdeas();
+  } catch (e) {
+    toast(e.message, "error");
+  } finally {
+    setIdeaBusy("");
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1812,9 +2134,35 @@ function bind() {
   $$(".stage-link").forEach((el) => el.addEventListener("click", () => showPage(el.dataset.page)));
   window.addEventListener("hashchange", () => {
     const page = location.hash.replace(/^#/, "");
-    if (["story", "scenes", "samples", "production", "final", "settings"].includes(page) && page !== S.page) {
+    if (["ideas", "story", "scenes", "samples", "production", "final", "publish", "settings"].includes(page) && page !== S.page) {
       showPage(page);
     }
+  });
+
+  $("suggestGenres").addEventListener("click", suggestGenres);
+  $("addGenre").addEventListener("click", addGenre);
+  $("generateIdeas").addEventListener("click", generateGenreIdeas);
+  $("ideaRefreshModels").addEventListener("click", loadIdeaModels);
+  $("ideaProvider").addEventListener("change", () => {
+    if (["opencode-go", "opencode"].includes($("ideaProvider").value)) {
+      $("ideaModel").value = "claude-haiku-5-5";
+    }
+    loadIdeaModels();
+  });
+  $("genreGrid").addEventListener("click", (e) => {
+    const card = e.target.closest("[data-genre-id]");
+    if (!card) return;
+    S.selectedGenre = card.dataset.genreId;
+    renderIdeas();
+  });
+  $("ideaList").addEventListener("click", (e) => {
+    const use = e.target.closest("[data-use-idea]");
+    if (use) {
+      useIdea(use.dataset.useIdea, use.dataset.generate === "1");
+      return;
+    }
+    const open = e.target.closest("[data-open-project]");
+    if (open) openIdeaProject(open.dataset.openProject);
   });
 
   $("generateStory").addEventListener("click", generateStory);

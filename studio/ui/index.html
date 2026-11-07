@@ -33,6 +33,11 @@
     </div>
 
     <nav id="stageNav" class="stage-nav">
+      <button data-page="ideas" class="stage-link ideas-link">
+        <span class="stage-num">✦</span><span class="stage-name">Story table</span>
+        <span class="stage-badge" id="badge-ideas">lab</span>
+      </button>
+      <div class="rail-divider"></div>
       <button data-page="story" class="stage-link">
         <span class="stage-num">01</span><span class="stage-name">Story</span>
         <span class="stage-badge" id="badge-story">empty</span>
@@ -70,6 +75,73 @@
   </aside>
 
   <main class="main">
+
+    <!-- STORY TABLE -->
+    <section id="page-ideas" class="page">
+      <div class="page-head">
+        <div><div class="eyebrow">STORY TABLE</div><h2>Pick a genre. Pick a story. Produce.</h2><p class="sub">Let Claude design channel-ready genres and three detailed story blueprints. You only choose what gets made.</p></div>
+        <div class="page-actions"><button id="suggestGenres" class="btn primary" type="button">Suggest 5 genres</button></div>
+      </div>
+
+      <div class="card slim">
+        <div class="row wrap align-end idea-model-row">
+          <label>Ideation provider
+            <select id="ideaProvider">
+              <option value="opencode-go">OpenCode Go</option>
+              <option value="opencode">OpenCode Console</option>
+              <option value="ollama">Local Ollama</option>
+            </select>
+          </label>
+          <label>Model
+            <div class="input-row">
+              <input id="ideaModel" list="ideaModelOptions" value="claude-haiku-5-5" placeholder="claude-haiku-5-5">
+              <button id="ideaRefreshModels" class="btn ghost small" type="button" title="Refresh models">↻</button>
+            </div>
+            <datalist id="ideaModelOptions"></datalist>
+            <span id="ideaModelHint" class="hint">Claude Haiku 5.5 is recommended for story ideation.</span>
+          </label>
+          <span id="ideasStatus" class="status"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Genre channels</h3><span id="genreSummary" class="hint">No genres yet.</span></div>
+        <div id="genreGrid" class="genre-grid">
+          <p class="hint">Click <b>Suggest 5 genres</b> to let Claude design five separate channel pillars.</p>
+        </div>
+        <details class="user-genre">
+          <summary>+ Add your own genre</summary>
+          <div class="row wrap">
+            <label>Genre name <input id="newGenreName" type="text" placeholder="Small-town crime thriller"></label>
+            <label>Hindi name <input id="newGenreNameHi" type="text" placeholder="छोटे शहर का रहस्य"></label>
+            <label>Channel name <input id="newGenreChannel" type="text" placeholder="चैनल का नाम"></label>
+          </div>
+          <label>Description <textarea id="newGenreDesc" rows="2" placeholder="What stories does this genre promise?"></textarea></label>
+          <div class="row wrap">
+            <label>Audience <input id="newGenreAudience" type="text" placeholder="Who is this for?"></label>
+            <label>Tone <input id="newGenreTone" type="text" placeholder="tense, emotional, hopeful"></label>
+          </div>
+          <label>Repeatable themes (comma separated) <input id="newGenreThemes" type="text" placeholder="family secret, revenge, small-town power"></label>
+          <label>Channel tagline <input id="newGenreTagline" type="text" placeholder="हर कहानी, एक सवाल"></label>
+          <button id="addGenre" class="btn" type="button">Save genre</button>
+        </details>
+      </div>
+
+      <div class="card" id="genreWorkspace">
+        <div class="card-head">
+          <div><h3 id="selectedGenreName">Choose a genre</h3><span id="selectedGenreMeta" class="hint">Select a genre above to see its story bank.</span></div>
+          <div class="row wrap idea-controls">
+            <label>Minutes <input id="ideaMinutes" type="number" min="3" max="60" value="10"></label>
+            <label>Chapters <input id="ideaChapters" type="number" min="1" max="20" value="5"></label>
+            <button id="generateIdeas" class="btn primary" type="button">Generate 3 story ideas</button>
+          </div>
+        </div>
+        <div id="genreBrief" class="genre-brief"></div>
+        <div id="ideaList" class="idea-list">
+          <div class="empty-state"><strong>No genre selected</strong>Suggest five genres, then generate three story ideas for the one you want to build.</div>
+        </div>
+      </div>
+    </section>
 
     <!-- STORY -->
     <section id="page-story" class="page">

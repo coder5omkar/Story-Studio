@@ -13,6 +13,7 @@ import json
 import os
 import shutil
 import sys
+import threading
 import urllib.parse
 from pathlib import Path
 
@@ -27,11 +28,12 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from studio import ops, providers, qa, store
+from studio import ideas, ops, providers, qa, store
 from studio.jobs import manager
 
 UI_DIR = store.UI_DIR
 PORT = int(os.environ.get("STUDIO_PORT", "4780"))
+IDEAS_LOCK = threading.Lock()
 
 app = FastAPI(title="Story Studio", docs_url=None, redoc_url=None)
 
@@ -307,6 +309,125 @@ def save_api_key(pid: str, payload: dict = Body(...)) -> dict:
     key = str(payload.get("key", "")).strip()
     store.save_secrets({"llm_api_key": key})
     return {"ok": True, "has_api_key": bool(key)}
+
+
+# ---------------------------------------------------------------------------
+# Story table / idea lab
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/ideas")
+def get_idea_library() -> dict:
+    return ideas.public_library(ideas.load_library())
+
+
+@app.post("/api/ideas/genres/suggest")
+def suggest_idea_genres(payload: dict = Body(default={})) -> dict:
+    with IDEAS_LOCK:
+        data = ideas.load_library()
+        ideas.update_settings(data, payload)
+        ideas.save_library(data)
+        try:
+            return ideas.suggest_genres(data)
+        except Exception as exc:
+            raise _fail(exc)
+
+
+@app.post("/api/ideas/genres")
+def add_idea_genre(payload: dict = Body(...)) -> dict:
+    with IDEAS_LOCK:
+        data = ideas.load_library()
+        try:
+            return ideas.add_user_genre(data, payload)
+        except Exception as exc:
+            raise _fail(exc)
+
+
+@app.post("/api/ideas/genres/{genre_id}/ideas")
+def generate_genre_ideas(genre_id: str, payload: dict = Body(default={})) -> dict:
+    with IDEAS_LOCK:
+        data = ideas.load_library()
+        ideas.update_settings(data, payload)
+        ideas.save_library(data)
+        try:
+            minutes = float(payload.get("minutes", 10) or 10)
+            chapters = int(payload.get("chapters", 5) or 5)
+            return ideas.generate_ideas(data, genre_id, minutes=minutes, chapters=chapters)
+        except Exception as exc:
+            raise _fail(exc)
+
+
+@app.post("/api/ideas/{idea_id}/project")
+def project_from_idea(idea_id: str, payload: dict = Body(default={})) -> dict:
+    with IDEAS_LOCK:
+        data = ideas.load_library()
+        idea = next((item for item in data.get("ideas", []) if item.get("id") == idea_id), None)
+        if not idea:
+            raise HTTPException(404, "Story idea not found")
+        genre = next(
+            (item for item in data.get("genres", []) if item.get("id") == idea.get("genre_id")),
+            {},
+        )
+        existing_pid = str(idea.get("project_id") or "").strip()
+        if existing_pid and (store.PROJECTS_DIR / existing_pid).is_dir():
+            return {
+                "project_id": existing_pid,
+                "title": idea.get("title", ""),
+                "existing": True,
+                "job": None,
+            }
+
+        ideas.update_settings(data, payload)
+        ideas.save_library(data)
+        blueprint, instructions = ideas.blueprint_for(idea, genre)
+        minutes = max(3, min(60, int(idea.get("minutes") or payload.get("minutes") or 10)))
+        chapters = max(1, min(20, int(idea.get("chapters") or payload.get("chapters") or 5)))
+        title = str(idea.get("title") or idea.get("title_en") or "Hindi story").strip()
+        slug_source = str(idea.get("title_en") or title).strip()
+        try:
+            state = store.create_project(
+                title, blueprint, minutes, chapters, slug_source=slug_source
+            )
+        except Exception as exc:
+            raise _fail(exc)
+
+        pid = state["project_id"]
+        settings = state["settings"]
+        settings["story_instructions"] = instructions
+        settings["story_genre"] = str(genre.get("name", ""))
+        settings["story_genre_id"] = str(genre.get("id", ""))
+        settings["story_idea_id"] = idea_id
+        settings["story_thumbnail_moment"] = str(idea.get("thumbnail_moment", ""))
+        publish = settings.setdefault("publish", {})
+        if genre.get("channel_name"):
+            publish["channel_name"] = genre["channel_name"]
+        if genre.get("channel_tagline"):
+            publish["channel_tagline"] = genre["channel_tagline"]
+        idea_settings = data.get("settings", {})
+        llm = settings.setdefault("llm", {})
+        for key in ("provider", "model", "api_base", "temperature"):
+            if idea_settings.get(key) not in (None, ""):
+                llm[key] = idea_settings[key]
+        store.write_project_config(pid, state)
+        store.save_state(pid, state)
+        ideas.mark_idea_project(idea_id, pid)
+
+        job = None
+        if bool(payload.get("generate")):
+            try:
+                job = manager.start(pid, "story", lambda worker: ops.generate_story(
+                    pid, state, worker,
+                    topic=blueprint, minutes=minutes, chapters=chapters,
+                    instructions=instructions,
+                ))
+            except Exception as exc:
+                raise _fail(exc)
+        return {
+            "project_id": pid,
+            "title": title,
+            "existing": False,
+            "job": job.to_dict(include_logs=False) if job else None,
+        }
 
 
 # ---------------------------------------------------------------------------
