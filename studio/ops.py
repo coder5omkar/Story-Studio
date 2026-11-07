@@ -1241,7 +1241,7 @@ Return only this JSON object:
             "dramatic composition with empty space on the left for text, no text, no watermark"
         )
 
-    store.set_stage(state, "publish", "draft", approved=False, notes="Publish kit generated")
+    store.set_stage(state, "publish", "ready", approved=False, notes="Publish kit generated")
     state["stages"]["publish"].update({
         "title_options": titles,
         "title": best,
