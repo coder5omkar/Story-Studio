@@ -73,12 +73,22 @@ def _media_url(pid: str, rel: str) -> str:
     return f"/api/projects/{pid}/media/{urllib.parse.quote(rel, safe='/')}"
 
 
+def _versioned_media_url(pid: str, rel: str, path: Path) -> str:
+    """Append a file version so regenerated assets bypass browser cache."""
+    url = _media_url(pid, rel)
+    try:
+        return f"{url}?v={path.stat().st_mtime_ns}"
+    except OSError:
+        return url
+
+
 def _sample_payload(pid: str, state: dict) -> dict:
+    root = store.project_paths(pid)["root"]
     out = {}
     for kind, node in state["stages"]["samples"].items():
         item = dict(node)
         if item.get("path"):
-            item["url"] = _media_url(pid, item["path"])
+            item["url"] = _versioned_media_url(pid, item["path"], root / item["path"])
         out[kind] = item
     return out
 
@@ -104,7 +114,7 @@ def _project_payload(pid: str) -> dict:
         candidate = paths["video"] / name
         if candidate.exists():
             outputs[name] = {
-                "url": _media_url(pid, f"video/{name}"),
+                "url": _versioned_media_url(pid, f"video/{name}", candidate),
                 "size": candidate.stat().st_size,
             }
     active = manager.active_for_project(pid)
@@ -123,7 +133,7 @@ def _project_payload(pid: str) -> dict:
         "scene_status": qa.summarize_scene_status(scenes, paths["root"]),
         "samples": _sample_payload(pid, state),
         "project_audio": {
-            "music": _media_url(pid, "audio/music.mp3") if music_path.exists() else "",
+            "music": _versioned_media_url(pid, "audio/music.mp3", music_path) if music_path.exists() else "",
         },
         "gates": gates,
         "outputs": outputs,
@@ -522,7 +532,11 @@ def start_production(pid: str, payload: dict = Body(default={})) -> dict:
     stages = payload.get("stages") or ["images", "music", "tts", "assemble"]
     subtitles = bool(payload.get("subtitles", state["settings"].get("subtitles", True)))
     state["settings"]["subtitles"] = subtitles
-    gates = ops.check_gates(state, need_music=("music" in stages or "assemble" in stages))
+    music_enabled = bool(state["settings"].get("music", {}).get("enabled", True))
+    if not music_enabled:
+        stages = [stage for stage in stages if stage != "music"]
+    need_music = music_enabled and ("music" in stages or "assemble" in stages)
+    gates = ops.check_gates(state, need_music=need_music)
     if not gates["ok"]:
         raise HTTPException(409, detail={"message": "Approval gates missing", "gates": gates})
     store.write_project_config(pid, state)

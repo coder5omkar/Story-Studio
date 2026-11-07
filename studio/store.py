@@ -85,7 +85,7 @@ def default_settings() -> dict:
             **{k: v for k, v in cfg.get("image", {}).items()},
         },
         "tts": {**cfg.get("tts", {})},
-        "music": {**cfg.get("music", {}), "volume": 0.10},
+        "music": {**cfg.get("music", {}), "volume": 0.10, "enabled": True},
         "subtitles": True,
         "video": {"width": 1920, "height": 1080, "fps": 30},
         "comfy_url": cfg.get("comfy_url", "http://127.0.0.1:8188"),
@@ -206,6 +206,8 @@ def load_state(pid: str) -> dict:
     settings.setdefault("story_minutes", 5)
     settings.setdefault("story_chapters", 5)
     settings.setdefault("story_instructions", "")
+    music = settings.setdefault("music", {})
+    music.setdefault("enabled", True)
     llm = settings.setdefault("llm", {})
     llm.setdefault("provider", "ollama")
     llm.setdefault("model", "aya-expanse:8b")

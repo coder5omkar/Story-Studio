@@ -213,6 +213,7 @@
             <label>Key <input id="musicKey" type="text" value="C minor"></label>
           </div>
           <div class="row wrap"><button id="genMusic" class="btn primary">Generate music sample</button><button id="approveMusic" class="btn">Approve music</button><button id="rejectMusic" class="btn danger ghost">Reject</button></div>
+          <p id="musicDisabledHint" class="hint hidden">Music is disabled in Settings. You can skip this sample and the music approval gate.</p>
           <audio id="musicAudio" class="media hidden" controls></audio>
           <div id="musicChecks" class="checks"></div>
         </div>
@@ -373,6 +374,7 @@
             <label>Key <input id="setMusicKey" type="text" value="C minor"></label>
             <label>Music volume <input id="setMusicVolume" type="number" step="0.01" min="0" max="1" value="0.10"></label>
           </div>
+          <label class="check-label"><input id="setMusicEnabled" type="checkbox" checked> Use music bed</label>
           <label class="check-label"><input id="setSubtitles" type="checkbox" checked> Burn subtitles by default</label>
         </div>
       </div>

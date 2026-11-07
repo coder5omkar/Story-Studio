@@ -28,7 +28,7 @@ final video.
   Indian amounts, percentages, ordinals and acronyms are converted to Hindi
   words before synthesis.
 - **Image samples** with SDXL, Z-Image Turbo, IPAdapter and FaceID.
-- **Music samples** with ACE-Step.
+- **Music samples** with ACE-Step (optional; disabled in Settings if not wanted).
 - **Real subtitle/motion preview** rendered through the final `assemble.py` path.
 - **Resumable batch production** with per-scene image/voice retry.
 - **Final review** with approval and optional subtitle burn-in.
@@ -261,9 +261,11 @@ or `OPENAI_API_KEY`.
    - **Voice:** audition Chatterbox with exaggeration/CFG/temperature. Click
      **Preview spoken text** to see exactly how amounts and acronyms will be read.
    - **Image:** generate one scene with the selected style/engine.
-   - **Music:** audition an ACE-Step bed.
+   - **Music:** audition an ACE-Step bed. Music is optional: turn it off under
+     **Settings → Music & output → Use music bed** and the music gate is skipped.
    - **Subtitle/motion preview:** render one scene through the real final assembly
-     path, with optional subtitles and music.
+     path, with optional subtitles and music. Subtitles do not need a separate
+     generation step; uncheck the burn-in box to preview or deliver without them.
    - Approve every sample required by the gates.
 4. **Production**
    - Batch images, music, narration and assembly. Completed assets are skipped.
@@ -355,8 +357,8 @@ $env:PYTHONIOENCODING = "utf-8"
   approval. Use more chapters or a model with a larger output budget.
 - **OpenCode 401/403** — verify the key belongs to a Go-enabled workspace and
   that the model/region is allowed.
-- **A gate is blocked** — approve the required story, scene, voice, image, music
-  and preview-clip stages in order.
+- **A gate is blocked** — approve the required story, scene, voice, image and
+  preview-clip stages; music is required only when **Use music bed** is enabled.
 - **Port already in use** — set `STUDIO_PORT` before starting.
 
 ## Credits

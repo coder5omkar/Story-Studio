@@ -1010,7 +1010,9 @@ def _require_approved(state: dict, path: str, label: str) -> None:
         raise RuntimeError(f"Gate not approved: {label}. Approve it before starting batch production.")
 
 
-def check_gates(state: dict, *, need_music: bool = True) -> dict:
+def check_gates(state: dict, *, need_music: bool | None = None) -> dict:
+    if need_music is None:
+        need_music = bool(state.get("settings", {}).get("music", {}).get("enabled", True))
     gates = {
         "story": bool(store.stage(state, "story").get("approved")),
         "scenes": bool(store.stage(state, "scenes").get("approved")),
@@ -1032,7 +1034,10 @@ def start_production(
 ) -> dict:
     stages = stages or ["images", "music", "tts", "assemble"]
     subtitles = bool(state["settings"].get("subtitles", True) if subtitles is None else subtitles)
-    need_music = "music" in stages or "assemble" in stages
+    music_enabled = bool(state["settings"].get("music", {}).get("enabled", True))
+    if not music_enabled:
+        stages = [stage for stage in stages if stage != "music"]
+    need_music = music_enabled and ("music" in stages or "assemble" in stages)
     gates = check_gates(state, need_music=need_music)
     if not gates["ok"]:
         missing = [k for k, v in gates["gates"].items() if not v]
@@ -1082,6 +1087,8 @@ def start_production(
                 args = ["--out-name", "final.mp4"]
                 if not subtitles:
                     args.append("--no-subs")
+                if not music_enabled:
+                    args.append("--no-music")
                 _run_script(pid, state, "assemble.py", args, job)
             base += span
             job.set_progress(base, f"{stage_name} done")
@@ -1115,6 +1122,8 @@ def render_final(
     args = ["--out-name", out_name]
     if not subtitles:
         args.append("--no-subs")
+    if not bool(state["settings"].get("music", {}).get("enabled", True)):
+        args.append("--no-music")
     job.set_progress(5, "Assembling final video")
     _run_script(pid, state, "assemble.py", args, job)
     out = paths["video"] / out_name

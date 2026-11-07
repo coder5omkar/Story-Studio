@@ -427,12 +427,15 @@ function renderRail() {
     badge.className = `stage-badge ${statusClass(status)}`;
   }
 
+  const musicEnabled = S.data.state.settings.music.enabled !== false;
   const gates = [
     ["Story approved", stageStatus("story") === "approved"],
     ["Scene plan approved", stageStatus("scenes") === "approved"],
     ["Voice sample approved", stage("samples.voice").approved],
     ["Image sample approved", stage("samples.image").approved],
-    ["Music sample approved", stage("samples.music").approved],
+    ...(musicEnabled
+      ? [["Music sample approved", stage("samples.music").approved]]
+      : [["Music disabled (optional)", true]]),
     ["Preview clip approved", stage("samples.clip").approved],
   ];
   $("gateList").innerHTML = gates.map(([label, on]) =>
@@ -810,6 +813,9 @@ function renderSamples() {
   setSampleStatus("sampleImageStatus", image.status);
   setSampleStatus("sampleMusicStatus", music.status);
   setSampleStatus("sampleClipStatus", clip.status);
+  const musicEnabled = settings.music.enabled !== false;
+  $("musicDisabledHint").classList.toggle("hidden", musicEnabled);
+  if (!musicEnabled && !music.status) setSampleStatus("sampleMusicStatus", "disabled");
   renderChecks("voiceChecks", voice.validation);
   const normalizedText = voice.normalized_text || S.voicePreviewText;
   if (normalizedText) {
@@ -1022,12 +1028,13 @@ function updateStoryPlanHint() {
 
 function renderProduction() {
   const gates = S.data.gates?.gates || {};
+  const musicEnabled = S.data.state.settings.music.enabled !== false;
   const labels = {
     story: "Story approved",
     scenes: "Scene plan approved",
     voice: "Voice sample approved",
     image: "Image sample approved",
-    music: "Music sample approved",
+    music: musicEnabled ? "Music sample approved" : "Music disabled (optional)",
     clip: "Preview clip approved",
   };
   $("productionGates").innerHTML =
@@ -1036,6 +1043,8 @@ function renderProduction() {
       `<div class="gate ${gates[key] ? "on" : ""}"><span class="gate-check">${gates[key] ? "✓" : ""}</span><span>${label}</span></div>`
     ).join("")}</div>`;
   $("startProduction").disabled = !S.data.gates?.ok || !!S.data.active_job;
+  $("prodMusic").disabled = !musicEnabled;
+  if (!musicEnabled) $("prodMusic").checked = false;
 
   const status = S.data.scene_status || [];
   $("sceneAssetSummary").textContent =
@@ -1067,8 +1076,9 @@ function renderJobPanel() {
 
 async function startProduction() {
   const stages = [];
+  const musicEnabled = S.data.state.settings.music.enabled !== false;
   if ($("prodImages").checked) stages.push("images");
-  if ($("prodMusic").checked) stages.push("music");
+  if ($("prodMusic").checked && musicEnabled) stages.push("music");
   if ($("prodTts").checked) stages.push("tts");
   if ($("prodAssemble").checked) stages.push("assemble");
   if (!stages.length) return toast("Select at least one stage", "error");
@@ -1104,7 +1114,10 @@ function renderFinal() {
   renderChecks("finalChecks", node.validation);
 
   let url = null;
-  if (node.path) url = `/api/projects/${S.pid}/media/${node.path}`;
+  if (node.path) {
+    const version = encodeURIComponent(node.updated_at || Date.now());
+    url = `/api/projects/${S.pid}/media/${node.path}?v=${version}`;
+  }
   if (!url && S.data.outputs?.["final.mp4"]?.url) url = S.data.outputs["final.mp4"].url;
   const video = $("finalVideo");
   if (url) {
@@ -1187,6 +1200,7 @@ function renderSettings() {
   $("setMusicBpm").value = s.music.bpm || 78;
   $("setMusicKey").value = s.music.key || "C minor";
   $("setMusicVolume").value = s.music.volume ?? 0.1;
+  $("setMusicEnabled").checked = s.music.enabled !== false;
   $("setSubtitles").checked = !!s.subtitles;
 }
 
@@ -1227,6 +1241,7 @@ function collectSettings() {
       bpm: Number($("setMusicBpm").value || 78),
       key: $("setMusicKey").value.trim() || "C minor",
       volume: Number($("setMusicVolume").value || 0.1),
+      enabled: $("setMusicEnabled").checked,
     },
     comfy_url: $("setComfyUrl").value.trim(),
     ollama_url: $("setOllamaUrl").value.trim(),

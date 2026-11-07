@@ -52,9 +52,13 @@ unapproved.
      ages and acronyms are converted to spoken Hindi words before synthesis.
      Use **Preview spoken text** to check the pronunciation without generating audio.
    - **Image:** SDXL, FaceID, IPAdapter or Z-Image sample with an optional seed.
-   - **Music:** ACE-Step sample with prompt, BPM, key and duration.
+   - **Music:** optional ACE-Step sample with prompt, BPM, key and duration.
+     Turn off **Settings → Music & output → Use music bed** to skip the music
+     sample and its approval gate.
    - **Subtitle / motion preview:** renders one scene through the real
      `assemble.py` path, including burned-in subtitles and optional music.
+     Subtitles are toggled in the preview and final-render checkboxes; no
+     separate subtitle file generation is required.
    Approve each sample.
 4. **Production** — batch images / music / narration / assembly with resumable
    skips. Existing assets are not regenerated. Per-scene retry buttons regenerate
