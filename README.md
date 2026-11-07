@@ -277,6 +277,7 @@ or `OPENAI_API_KEY`.
      image, voice player and script. Autoplay-next plays the voices in order.
      Edit the script or image prompt, save, and regenerate that scene's voice or
      image. Saving keeps the style approvals; click **Approve plan** when done.
+     Image retries use a fresh seed, so each regeneration is a new variation.
    - Assembling again reuses existing clips unless their image, timing or scene
      prompt changed, so a failed mix does not re-render every clip.
    - Missing music no longer fails assembly; it finishes without music unless

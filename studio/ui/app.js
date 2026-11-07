@@ -1315,7 +1315,9 @@ async function regenerateReview(kind) {
     });
     if (kind === "voice") S.reviewPlayAfterLoad = true;
     startJob(res);
-    toast(`${kind === "voice" ? "Voice" : "Image"} regeneration started for scene ${scene.id}`);
+    toast(kind === "voice"
+      ? `Voice regeneration started for scene ${scene.id}`
+      : `New image variation started for scene ${scene.id}`);
   } catch (e) {
     toast(e.message, "error");
   }

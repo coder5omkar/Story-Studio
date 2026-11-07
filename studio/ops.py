@@ -6,6 +6,7 @@ import json
 import math
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -1377,9 +1378,20 @@ def generate_thumbnail(pid: str, state: dict, job: Job, *, engine: str | None = 
 
 
 def retry_scene(pid: str, state: dict, job: Job, *, scene_id: int, kind: str) -> dict:
+    result: dict = {"scene_id": scene_id, "kind": kind}
     if kind == "image":
         engine = state["settings"].get("image", {}).get("engine", "sdxl")
-        _run_script(pid, state, "images.py", ["--engine", engine, "--ids", str(scene_id), "--force"], job)
+        # Batch generation is reproducible with a per-scene seed. A manual
+        # retry should produce a fresh variation, otherwise the same prompt
+        # renders a byte-identical image and looks like nothing happened.
+        seed = secrets.randbelow(2**31 - 2) + 1
+        job.log(f"New image seed: {seed}")
+        _run_script(
+            pid, state, "images.py",
+            ["--engine", engine, "--ids", str(scene_id), "--force", "--seed", str(seed)],
+            job,
+        )
+        result["seed"] = seed
     elif kind == "voice":
         _run_script(pid, state, "tts.py", ["--ids", str(scene_id), "--force"], job, python=_tts_py())
     else:
@@ -1390,4 +1402,4 @@ def retry_scene(pid: str, state: dict, job: Job, *, scene_id: int, kind: str) ->
     )
     store.save_state(pid, state)
     job.set_progress(100, f"Scene {scene_id} {kind} regenerated")
-    return {"scene_id": scene_id, "kind": kind}
+    return result

@@ -69,6 +69,8 @@ unapproved.
      click **Save scene**; then **Regenerate voice** or **Regenerate image** for
      that scene. Saving marks the scene plan draft but keeps the voice/image
      style approvals. Click **Approve plan** once the review is complete.
+     Image regeneration uses a fresh seed each time, so it produces a real new
+     variation; batch generation still uses deterministic per-scene seeds.
    - Assembling again reuses existing clips while their image, narration timing and
      scene prompt are unchanged, so a failed final mix does not re-render the video
      clips. If `audio/music.mp3` is missing, assembly automatically continues
