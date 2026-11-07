@@ -1,0 +1,1519 @@
+const S = {
+  projects: [],
+  pid: null,
+  data: null,
+  page: "story",
+  jobId: null,
+  job: null,
+  poll: null,
+  health: null,
+  selectedScene: 1,
+  storyDirty: false,
+  topicDirty: false,
+  instructionsDirty: false,
+  sceneDirty: false,
+  settingsDirty: false,
+  voicePreviewText: "",
+  toastTimer: null,
+};
+
+const PROVIDER_PRESETS = {
+  "opencode-go": "https://opencode.ai/inference/go/openai/v1",
+  "opencode": "https://opencode.ai/inference/openai/v1",
+};
+
+const PROVIDER_MODEL_HINTS = {
+  "opencode-go": "deepseek-v4.1-flash",
+  "opencode": "deepseek-v4.1-flash",
+  "openai": "provider model ID",
+};
+
+const PROVIDER_DEFAULT_MODELS = {
+  "opencode-go": "deepseek-v4.1-flash",
+  "opencode": "deepseek-v4.1-flash",
+  "ollama": "aya-expanse:8b",
+};
+
+const STYLE_PRESETS = {
+  minimalist: {
+    engine: "zimage",
+    prefix:
+      "minimalist 2D webcomic educational explainer illustration, flat clean vector lines, " +
+      "solid flat colors, no shading, no gradients, simple shapes with detailed flat backgrounds, " +
+      "clear daylight, wide 16:9 composition, Infographics Show and Kurzgesagt inspired, no text, no watermark",
+    character:
+      "the protagonist is a simple stick figure character with a large round white head, two dot eyes, " +
+      "a small straight-line mouth, wearing a long-sleeve grey-blue shirt and dark blue jeans",
+    negative:
+      "low quality, blurry, text, watermark, logo, signature, photorealistic, 3D render, realistic human, " +
+      "realistic skin texture, detailed face, detailed eyes, detailed mouth, nose, ears, beard, mustache, hair, " +
+      "neck, tie, collar, buttons, suit, shirt cuffs, white shirt, smile, curved mouth, grin, eyebrows, teeth, " +
+      "realistic hands, muscular body, realistic proportions, mannequin, statue, doll, shading, gradients, " +
+      "soft shadows, complex clothing folds, deformed, extra fingers, bad anatomy",
+  },
+  "indian-flat": {
+    engine: "sdxl",
+    prefix:
+      "flat vector illustration, clean bold outlines, warm muted palette, soft shading, cinematic composition, " +
+      "Indian middle-class setting, detailed background, no text, no watermark",
+    character:
+      "Arjun, a 29-year-old Indian man with short black hair, a light mustache, average build, " +
+      "wearing a white shirt, dark trousers, and a simple wristwatch",
+    negative:
+      "low quality, blurry, text, watermark, logo, signature, photorealistic, 3D render, " +
+      "deformed, extra fingers, bad anatomy",
+  },
+  photoreal: {
+    engine: "sdxl",
+    prefix:
+      "photorealistic cinematic film still, natural skin texture, detailed expressive faces, realistic clothing, " +
+      "35mm lens, shallow depth of field, volumetric lighting, Indian middle-class setting, " +
+      "muted cinematic color grade, no text, no watermark",
+    character:
+      "the protagonist is a realistic Indian man in his late thirties with short black hair, a light beard, " +
+      "average build, wearing a simple shirt and trousers; keep the same face and outfit consistent across scenes",
+    negative:
+      "cartoon, anime, illustration, painting, drawing, 3D render, flat colors, low quality, blurry, " +
+      "text, watermark, logo, signature, deformed, extra fingers, bad anatomy",
+  },
+  "cinematic-dark": {
+    engine: "sdxl",
+    prefix:
+      "cinematic photorealistic film still, moody low-key lighting, deep shadows, tense atmosphere, 35mm lens, " +
+      "shallow depth of field, Indian middle-class setting, desaturated color grade, no text, no watermark",
+    character:
+      "the protagonist is a realistic Indian man in his late thirties with short black hair, a light beard, " +
+      "average build, wearing a simple shirt and trousers; keep the same face and outfit consistent across scenes",
+    negative:
+      "cartoon, anime, illustration, painting, drawing, 3D render, flat colors, low quality, blurry, " +
+      "text, watermark, logo, signature, deformed, extra fingers, bad anatomy",
+  },
+  anime: {
+    engine: "zimage",
+    prefix:
+      "hand-painted 2D anime film still, expressive characters, soft watercolor backgrounds, clean linework, " +
+      "warm cinematic lighting, Indian middle-class setting, detailed background, no text, no watermark",
+    character:
+      "the protagonist is a young Indian man with short black hair, wearing a simple shirt and trousers, " +
+      "drawn in a consistent anime style",
+    negative:
+      "photorealistic, 3D render, realistic skin texture, low quality, blurry, text, watermark, logo, " +
+      "signature, deformed, extra fingers, bad anatomy",
+  },
+  "animated-3d": {
+    engine: "sdxl",
+    prefix:
+      "stylized 3D animated feature film still, soft global illumination, rounded character design, " +
+      "expressive faces, detailed environment, Indian middle-class setting, cinematic composition, " +
+      "no text, no watermark",
+    character:
+      "the protagonist is a stylized 3D animated Indian man with short black hair, simple shirt and trousers, " +
+      "consistent character design",
+    negative:
+      "photorealistic, flat vector, 2D illustration, line drawing, low quality, blurry, text, watermark, logo, " +
+      "signature, deformed, extra fingers, bad anatomy",
+  },
+  "graphic-novel": {
+    engine: "sdxl",
+    prefix:
+      "graphic novel illustration, bold ink outlines, dramatic comic panel composition, halftone texture, " +
+      "limited color palette, Indian middle-class setting, detailed background, no text, no watermark",
+    character:
+      "the protagonist is an Indian man drawn in a consistent graphic novel style, short black hair, " +
+      "simple shirt and trousers",
+    negative:
+      "photorealistic, 3D render, soft painting, watercolor, low quality, blurry, text, watermark, logo, " +
+      "signature, deformed, extra fingers, bad anatomy",
+  },
+  watercolor: {
+    engine: "zimage",
+    prefix:
+      "soft watercolor storybook illustration, delicate ink lines, visible paper texture, warm muted washes, " +
+      "gentle lighting, Indian middle-class setting, detailed background, no text, no watermark",
+    character:
+      "the protagonist is an Indian man drawn in a consistent watercolor storybook style, short black hair, " +
+      "simple clothes",
+    negative:
+      "photorealistic, 3D render, harsh shadows, high contrast, low quality, blurry, text, watermark, logo, " +
+      "signature, deformed, extra fingers, bad anatomy",
+  },
+  "vintage-poster": {
+    engine: "sdxl",
+    prefix:
+      "vintage Indian poster illustration, screen-print texture, muted retro palette, bold simplified shapes, " +
+      "1970s Indian graphic design, Indian middle-class setting, no text, no watermark",
+    character:
+      "the protagonist is an Indian man in a consistent vintage poster style, simple shirt and trousers",
+    negative:
+      "photorealistic, 3D render, modern digital art, low quality, blurry, text, watermark, logo, signature, " +
+      "deformed, extra fingers, bad anatomy",
+  },
+  "paper-cutout": {
+    engine: "zimage",
+    prefix:
+      "layered paper cutout collage illustration, textured paper, bold simple shapes, soft drop shadows, " +
+      "warm palette, Indian middle-class setting, no text, no watermark",
+    character:
+      "the protagonist is a paper-cutout Indian man with simple features, shirt and trousers",
+    negative:
+      "photorealistic, 3D render, smooth gradients, low quality, blurry, text, watermark, logo, signature, " +
+      "deformed, extra fingers, bad anatomy",
+  },
+};
+
+const $ = (id) => document.getElementById(id);
+const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+
+function esc(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function statusClass(status) {
+  const s = String(status || "empty").toLowerCase();
+  return ["approved", "ready", "done", "draft", "running", "stale", "failed", "empty",
+    "changes_requested"].includes(s) ? s : "empty";
+}
+
+function statusText(status) {
+  return String(status || "empty").replaceAll("_", " ");
+}
+
+async function api(path, options = {}) {
+  const opts = { ...options, headers: { ...(options.headers || {}) } };
+  if (opts.body && typeof opts.body !== "string") {
+    opts.headers["Content-Type"] = "application/json";
+    opts.body = JSON.stringify(opts.body);
+  }
+  const res = await fetch(path, opts);
+  const text = await res.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  if (!res.ok) {
+    const detail = data?.detail ?? data;
+    let message = typeof detail === "string" ? detail : detail?.message;
+    if (!message) message = detail ? JSON.stringify(detail) : `HTTP ${res.status}`;
+    const err = new Error(message);
+    err.detail = detail;
+    throw err;
+  }
+  return data;
+}
+
+function toast(message, type = "ok") {
+  const el = $("toast");
+  el.textContent = message;
+  el.className = `toast ${type}`;
+  clearTimeout(S.toastTimer);
+  S.toastTimer = setTimeout(() => el.classList.add("hidden"), type === "error" ? 7000 : 3500);
+}
+
+function fmtMinutes(seconds) {
+  if (!seconds) return "—";
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function providerBase(provider) {
+  if (provider === "ollama") {
+    return $("setOllamaUrl")?.value.trim() || "http://127.0.0.1:11434";
+  }
+  return PROVIDER_PRESETS[provider] || $("setApiBase")?.value.trim() || "";
+}
+
+function applyProviderPreset(provider) {
+  const preset = PROVIDER_PRESETS[provider];
+  if (preset) $("setApiBase").value = preset;
+}
+
+const STYLE_LABELS = {
+  minimalist: "Minimalist explainer",
+  "indian-flat": "Indian flat-vector",
+  photoreal: "Cinematic photoreal",
+  "cinematic-dark": "Dark cinematic drama",
+  anime: "Anime / hand-painted",
+  "animated-3d": "3D animated feature",
+  "graphic-novel": "Graphic novel / comic",
+  watercolor: "Watercolor storybook",
+  "vintage-poster": "Vintage Indian poster",
+  "paper-cutout": "Paper cutout collage",
+};
+
+function renderStyleGallery() {
+  const el = $("styleGallery");
+  if (!el) return;
+  el.innerHTML = Object.entries(STYLE_LABELS).map(([key, label]) => `
+    <div class="style-card">
+      <button type="button" class="style-card-select" data-style="${key}" title="Select ${esc(label)}">
+        <img src="/ui/style_samples/${key}_thumb.jpg" alt="${esc(label)} sample">
+        <span class="style-card-label">${esc(label)}</span>
+      </button>
+      <a class="style-card-full" href="/ui/style_samples/${key}.png" target="_blank" rel="noopener">Open full sample</a>
+    </div>
+  `).join("");
+}
+
+function markSelectedStyle(key) {
+  $$("#styleGallery [data-style]").forEach((button) => {
+    const card = button.closest(".style-card");
+    if (card) card.classList.toggle("selected", button.dataset.style === key);
+  });
+}
+
+function stylePresetFor(prefix, character, negative) {
+  const p = String(prefix || "").trim();
+  for (const [key, preset] of Object.entries(STYLE_PRESETS)) {
+    if (p === preset.prefix) return key;
+  }
+  const text = `${p} ${character || ""} ${negative || ""}`.toLowerCase();
+  if (text.includes("minimalist") || text.includes("webcomic")) return "minimalist";
+  return "custom";
+}
+
+function stage(path) {
+  let node = S.data?.state?.stages || {};
+  for (const part of path.split(".")) node = node?.[part] || {};
+  return node;
+}
+
+function stageStatus(path) {
+  return stage(path).status || "empty";
+}
+
+// ---------------------------------------------------------------------------
+// Boot
+// ---------------------------------------------------------------------------
+
+async function boot() {
+  bind();
+  renderStyleGallery();
+  const hashPage = location.hash.replace(/^#/, "");
+  if (["story", "scenes", "samples", "production", "final", "settings"].includes(hashPage)) {
+    S.page = hashPage;
+  }
+  await loadHealth();
+  await loadProjects();
+  setInterval(loadHealth, 15000);
+}
+
+async function loadHealth() {
+  try {
+    S.health = await api("/api/health");
+    const items = [
+      ["Ollama", S.health.ollama],
+      ["ComfyUI", S.health.comfy],
+      ["FFmpeg", S.health.ffmpeg],
+      ["TTS", S.health.tts_env],
+    ];
+    $("services").innerHTML = items.map(([name, ok]) =>
+      `<span class="service ${ok ? "ok" : "down"}" title="${name}: ${ok ? "online" : "offline"}"><span class="dot"></span><span>${name}</span></span>`
+    ).join("");
+  } catch (e) {
+    $("services").innerHTML = `<span class="service down"><span class="dot"></span><span>server offline</span></span>`;
+  }
+}
+
+async function loadProjects() {
+  try {
+    S.projects = await api("/api/projects");
+  } catch (e) {
+    S.projects = [];
+    toast(e.message, "error");
+  }
+  const sel = $("projectSelect");
+  if (!S.projects.length) {
+    sel.innerHTML = `<option value="">No projects yet</option>`;
+    S.pid = null;
+    S.data = null;
+    renderEmpty();
+    return;
+  }
+  sel.innerHTML = S.projects.map((p) =>
+    `<option value="${esc(p.id)}">${esc(p.title)}</option>`
+  ).join("");
+  const wanted = S.pid && S.projects.some((p) => p.id === S.pid) ? S.pid : S.projects[0].id;
+  sel.value = wanted;
+  if (wanted !== S.pid || !S.data) await selectProject(wanted);
+}
+
+async function selectProject(pid) {
+  S.pid = pid;
+  S.storyDirty = false;
+  S.topicDirty = false;
+  S.instructionsDirty = false;
+  S.sceneDirty = false;
+  S.settingsDirty = false;
+  S.selectedScene = 1;
+  S.voicePreviewText = "";
+  $("voiceText").value = "";
+  await loadProject();
+}
+
+async function loadProject() {
+  if (!S.pid) return;
+  try {
+    S.data = await api(`/api/projects/${S.pid}`);
+  } catch (e) {
+    toast(e.message, "error");
+    return;
+  }
+  if (S.data.active_job) {
+    S.jobId = S.data.active_job.id;
+    S.job = S.data.active_job;
+    startPolling();
+  }
+  renderAll();
+  if (!S.modelsLoaded) {
+    S.modelsLoaded = true;
+    loadModels();
+  }
+}
+
+function renderEmpty() {
+  $("projectTitle").textContent = "No project selected";
+  $("projectMeta").textContent = "Create a project to begin.";
+  ["story", "scenes", "samples", "production", "final"].forEach((p) => {
+    const badge = $(`badge-${p}`);
+    if (badge) { badge.textContent = "empty"; badge.className = "stage-badge empty"; }
+  });
+  $("gateList").innerHTML = "";
+  $("sceneList").innerHTML = `<div class="empty-state"><strong>No project</strong>Create a project to start the approval-gated workflow.</div>`;
+}
+
+// ---------------------------------------------------------------------------
+// Global render
+// ---------------------------------------------------------------------------
+
+function renderAll() {
+  if (!S.data) return renderEmpty();
+  renderTop();
+  renderRail();
+  renderStory();
+  renderScenes();
+  renderSamples();
+  renderProduction();
+  renderFinal();
+  renderSettings();
+  showPage(S.page);
+}
+
+function renderTop() {
+  const p = S.data.project;
+  const st = S.data.state;
+  $("projectTitle").textContent = p.title || p.id;
+  $("projectMeta").innerHTML =
+    `<span class="mono">${esc(p.id)}</span> · ${esc(st.created_at || "")}<br>` +
+    `${S.data.scenes.length} scenes · ${S.data.scene_status.filter((s) => s.image).length} images · ` +
+    `${S.data.scene_status.filter((s) => s.audio).length} voice clips`;
+}
+
+function renderRail() {
+  const map = {
+    story: stageStatus("story"),
+    scenes: stageStatus("scenes"),
+    samples: aggregateSampleStatus(),
+    production: stageStatus("production"),
+    final: stageStatus("final"),
+  };
+  for (const [page, status] of Object.entries(map)) {
+    const badge = $(`badge-${page}`);
+    if (!badge) continue;
+    badge.textContent = statusText(status);
+    badge.className = `stage-badge ${statusClass(status)}`;
+  }
+
+  const gates = [
+    ["Story approved", stageStatus("story") === "approved"],
+    ["Scene plan approved", stageStatus("scenes") === "approved"],
+    ["Voice sample approved", stage("samples.voice").approved],
+    ["Image sample approved", stage("samples.image").approved],
+    ["Music sample approved", stage("samples.music").approved],
+    ["Preview clip approved", stage("samples.clip").approved],
+  ];
+  $("gateList").innerHTML = gates.map(([label, on]) =>
+    `<div class="gate ${on ? "on" : ""}"><span class="gate-check">${on ? "✓" : ""}</span><span>${esc(label)}</span></div>`
+  ).join("");
+}
+
+function aggregateSampleStatus() {
+  const kinds = ["voice", "image", "music", "clip"].map((k) => stageStatus(`samples.${k}`));
+  if (kinds.every((k) => k === "approved")) return "approved";
+  if (kinds.some((k) => ["draft", "ready", "running"].includes(k))) return "draft";
+  if (kinds.some((k) => k === "stale")) return "stale";
+  return "empty";
+}
+
+function showPage(page) {
+  S.page = page;
+  $$(".page").forEach((el) => el.classList.toggle("active", el.id === `page-${page}`));
+  $$(".stage-link").forEach((el) => el.classList.toggle("active", el.dataset.page === page));
+  if (location.hash !== `#${page}`) history.replaceState(null, "", `#${page}`);
+}
+
+// ---------------------------------------------------------------------------
+// Story
+// ---------------------------------------------------------------------------
+
+function renderStory() {
+  const st = stage("story");
+  $("storyStatus").textContent = statusText(st.status);
+  $("storyStatus").className = `status ${statusClass(st.status)}`;
+
+  const text = S.data.story || "";
+  if (!S.storyDirty && document.activeElement !== $("storyText")) {
+    $("storyText").value = text;
+  }
+  $("storyWords").textContent = `${text.trim() ? text.trim().split(/\s+/).length : 0} words`;
+  renderChecks("storyChecks", S.data.story_validation, "storyScore");
+
+  if (document.activeElement !== $("storyModel")) $("storyModel").value = S.data.state.settings.llm.model || "";
+  if (!S.topicDirty && document.activeElement !== $("storyTopic")) {
+    $("storyTopic").value = S.data.state.settings.story_topic || "";
+  }
+  if (!S.instructionsDirty && document.activeElement !== $("storyInstructions")) {
+    $("storyInstructions").value = S.data.state.settings.story_instructions || "";
+  }
+  if (document.activeElement !== $("storyMinutes")) $("storyMinutes").value = S.data.state.settings.story_minutes || 5;
+  if (document.activeElement !== $("storyChapters")) $("storyChapters").value = S.data.state.settings.story_chapters || 5;
+  const provider = S.data.state.settings.llm.provider || "ollama";
+  if (document.activeElement !== $("llmProvider")) $("llmProvider").value = provider;
+  const temp = Number(S.data.state.settings.llm.temperature ?? 0.85);
+  if (document.activeElement !== $("storyTemp")) {
+    $("storyTemp").value = temp;
+    $("storyTempVal").textContent = temp.toFixed(2);
+  }
+  $("storyModel").placeholder = provider === "ollama"
+    ? "aya-expanse:8b"
+    : (PROVIDER_MODEL_HINTS[provider] || "model ID");
+  updateStoryPlanHint();
+}
+
+function renderChecks(targetId, validation, scoreId = null) {
+  const el = $(targetId);
+  if (!validation) {
+    el.innerHTML = `<div class="check"><span class="check-icon">–</span><div>No checks yet.</div></div>`;
+    if (scoreId) $(scoreId).textContent = "";
+    return;
+  }
+  if (scoreId) $(scoreId).textContent = `Score ${validation.score}/100`;
+  const icons = { pass: "✓", warn: "!", fail: "✕" };
+  el.innerHTML = (validation.checks || []).map((c) =>
+    `<div class="check ${c.status}"><span class="check-icon">${icons[c.status] || "·"}</span>` +
+    `<div><div class="check-label-text">${esc(c.label)}</div><div class="check-detail">${esc(c.detail)}</div></div></div>`
+  ).join("");
+}
+
+async function generateStory() {
+  const topic = $("storyTopic").value.trim();
+  if (!topic) return toast("Enter a topic first", "error");
+  const provider = $("llmProvider").value;
+  if (provider !== "ollama" && !$("storyModel").value.trim()) {
+    return toast("Choose a model for this provider", "error");
+  }
+  S.storyDirty = false;
+  try {
+    const res = await api(`/api/projects/${S.pid}/story/generate`, {
+      method: "POST",
+      body: {
+        topic,
+        minutes: Number($("storyMinutes").value || 5),
+        chapters: Number($("storyChapters").value || 5),
+        instructions: $("storyInstructions").value.trim(),
+        provider,
+        model: $("storyModel").value.trim(),
+        api_base: providerBase(provider),
+        temperature: Number($("storyTemp").value || 0.85),
+      },
+    });
+    startJob(res);
+    S.topicDirty = false;
+    S.instructionsDirty = false;
+    toast("Story generation started");
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function saveStory() {
+  try {
+    const res = await api(`/api/projects/${S.pid}/story`, {
+      method: "PUT",
+      body: { text: $("storyText").value },
+    });
+    S.storyDirty = false;
+    toast("Story draft saved");
+    await loadProject();
+    renderChecks("storyChecks", res.validation, "storyScore");
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function approveStory() {
+  try {
+    await api(`/api/projects/${S.pid}/story/approve`, { method: "POST" });
+    toast("Story approved");
+    await loadProject();
+  } catch (e) {
+    if (e.detail?.validation) renderChecks("storyChecks", e.detail.validation, "storyScore");
+    toast(e.message, "error");
+  }
+}
+
+async function requestStoryChanges() {
+  const notes = window.prompt("What needs to change?", "");
+  if (notes === null) return;
+  try {
+    await api(`/api/projects/${S.pid}/story/request-changes`, {
+      method: "POST", body: { notes },
+    });
+    toast("Changes requested");
+    await loadProject();
+  } catch (e) { toast(e.message, "error"); }
+}
+
+// ---------------------------------------------------------------------------
+// Scenes
+// ---------------------------------------------------------------------------
+
+function renderScenes() {
+  const scenes = S.data.scenes || [];
+  const status = S.data.scene_status || [];
+  const totalWords = scenes.reduce((n, s) => n + String(s.narration || "").split(/\s+/).filter(Boolean).length, 0);
+  const est = totalWords / 2.4;
+  $("sceneStats").innerHTML = [
+    ["Scenes", scenes.length],
+    ["Words", totalWords],
+    ["Est. runtime", fmtMinutes(est)],
+    ["Images", status.filter((s) => s.image).length],
+    ["Voice clips", status.filter((s) => s.audio).length],
+  ].map(([label, value]) => `<div class="stat"><div class="stat-value">${value}</div><div class="stat-label">${label}</div></div>`).join("");
+  renderChecks("sceneChecks", S.data.scenes_validation);
+  renderSceneList();
+}
+
+function renderSceneList() {
+  const filter = ($("sceneFilter")?.value || "").toLowerCase();
+  const scenes = (S.data.scenes || []).filter((s) =>
+    !filter || `${s.id} ${s.narration} ${s.image_prompt} ${s.mood}`.toLowerCase().includes(filter)
+  );
+  $("sceneFilterCount").textContent = filter ? `${scenes.length} matching` : "";
+  if (!scenes.length) {
+    $("sceneList").innerHTML = `<div class="empty-state"><strong>No scene plan yet</strong>Generate the scene plan from the approved story, or add a scene manually.</div>`;
+    return;
+  }
+  const status = Object.fromEntries((S.data.scene_status || []).map((s) => [s.id, s]));
+  const cameras = ["slow push in", "slow pull back", "slow pan left", "slow pan right"];
+  $("sceneList").innerHTML = scenes.map((scene) => {
+    const st = status[scene.id] || {};
+    return `<article class="scene-card" data-id="${scene.id}">
+      <div class="scene-top">
+        <span class="scene-id">SCENE ${String(scene.id).padStart(2, "0")}</span>
+        <span class="scene-assets">
+          <span class="${st.image ? "yes" : ""}">${st.image ? "🖼 image" : "no image"}</span>
+          <span class="${st.audio ? "yes" : ""}">${st.audio ? "🔊 voice" : "no voice"}</span>
+          ${st.duration ? `<span>${st.duration.toFixed(1)}s</span>` : ""}
+        </span>
+      </div>
+      <label>Narration <textarea data-field="narration" rows="3">${esc(scene.narration)}</textarea></label>
+      <label>English image prompt <textarea data-field="image_prompt" rows="2">${esc(scene.image_prompt)}</textarea></label>
+      <div class="row wrap">
+        <label>Camera
+          <select data-field="camera">${cameras.map((c) => `<option value="${c}" ${scene.camera === c ? "selected" : ""}>${c}</option>`).join("")}</select>
+        </label>
+        <label>Mood <input data-field="mood" type="text" value="${esc(scene.mood)}"></label>
+        <div class="scene-tools"><button class="btn ghost small" data-use-scene="${scene.id}">Use in Sample Studio →</button></div>
+      </div>
+    </article>`;
+  }).join("");
+}
+
+function collectScenes() {
+  const byId = Object.fromEntries((S.data.scenes || []).map((s) => [s.id, s]));
+  $$(".scene-card").forEach((card) => {
+    const get = (field) => card.querySelector(`[data-field="${field}"]`)?.value ?? "";
+    const id = Number(card.dataset.id);
+    byId[id] = {
+      ...(byId[id] || {}),
+      id,
+      chapter: byId[id]?.chapter ?? 0,
+      narration: get("narration"),
+      image_prompt: get("image_prompt"),
+      camera: get("camera"),
+      mood: get("mood"),
+    };
+  });
+  return (S.data.scenes || []).map((s) => byId[s.id]).filter(Boolean);
+}
+
+async function generateScenes() {
+  if (!S.data.story) return toast("Generate or write the story first", "error");
+  const provider = $("llmProvider").value;
+  S.sceneDirty = false;
+  try {
+    const res = await api(`/api/projects/${S.pid}/scenes/generate`, {
+      method: "POST",
+      body: {
+        target_words: Number($("sceneTargetWords").value || 24),
+        batch_size: Number($("sceneBatch").value || 12),
+        provider,
+        model: $("storyModel").value.trim(),
+        api_base: providerBase(provider),
+      },
+    });
+    startJob(res);
+    toast("Scene generation started");
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function repairPrompts() {
+  if (!S.data.scenes?.length) return toast("Generate the scene plan first", "error");
+  const provider = $("llmProvider").value;
+  try {
+    const res = await api(`/api/projects/${S.pid}/scenes/repair-prompts`, {
+      method: "POST",
+      body: {
+        provider,
+        model: $("storyModel").value.trim(),
+        api_base: providerBase(provider),
+      },
+    });
+    startJob(res);
+    toast("Repairing image prompts");
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function restylePrompts() {
+  if (!S.data.scenes?.length) return toast("Generate the scene plan first", "error");
+  const provider = $("llmProvider").value;
+  try {
+    const res = await api(`/api/projects/${S.pid}/scenes/restyle-prompts`, {
+      method: "POST",
+      body: {
+        provider,
+        model: $("storyModel").value.trim(),
+        api_base: providerBase(provider),
+      },
+    });
+    startJob(res);
+    toast("Rewriting scene prompts for the current style");
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function saveScenes() {
+  try {
+    const scenes = collectScenes();
+    const res = await api(`/api/projects/${S.pid}/scenes`, {
+      method: "PUT", body: { scenes },
+    });
+    S.sceneDirty = false;
+    toast("Scene plan saved");
+    await loadProject();
+    renderChecks("sceneChecks", res.validation);
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function approveScenes() {
+  try {
+    await api(`/api/projects/${S.pid}/scenes/approve`, { method: "POST" });
+    toast("Scene plan approved");
+    await loadProject();
+  } catch (e) {
+    if (e.detail?.validation) renderChecks("sceneChecks", e.detail.validation);
+    toast(e.message, "error");
+  }
+}
+
+function addScene() {
+  const scenes = collectScenes();
+  scenes.push({
+    id: (scenes.at(-1)?.id || 0) + 1,
+    chapter: 0,
+    narration: "",
+    image_prompt: "Indian middle-class setting, cinematic flat vector illustration, emotional storytelling scene",
+    camera: "slow push in",
+    mood: "emotional",
+  });
+  S.data.scenes = scenes;
+  S.sceneDirty = true;
+  renderSceneList();
+}
+
+function useScene(id) {
+  if (S.sceneDirty) {
+    S.data.scenes = collectScenes();
+    S.sceneDirty = false;
+  }
+  S.selectedScene = Number(id);
+  const scene = (S.data.scenes || []).find((s) => s.id === S.selectedScene);
+  showPage("samples");
+  populateSceneSelects();
+  for (const select of ["voiceScene", "imageScene", "clipScene"]) {
+    $(select).value = String(S.selectedScene);
+  }
+  if (scene) $("voiceText").value = scene.narration || "";
+  renderSampleMedia();
+  toast(`Scene ${id} selected in Sample Studio`);
+}
+
+// ---------------------------------------------------------------------------
+// Samples
+// ---------------------------------------------------------------------------
+
+function populateSceneSelects() {
+  const scenes = S.data.scenes || [];
+  const options = scenes.map((s) =>
+    `<option value="${s.id}">Scene ${String(s.id).padStart(2, "0")} · ${esc(String(s.narration || "").slice(0, 48))}${String(s.narration || "").length > 48 ? "…" : ""}</option>`
+  ).join("");
+  for (const id of ["voiceScene", "imageScene", "clipScene"]) {
+    const select = $(id);
+    const current = Number(select.value || S.selectedScene);
+    select.innerHTML = options || `<option value="1">No scenes yet</option>`;
+    if (scenes.some((s) => s.id === current)) select.value = String(current);
+    else if (scenes.length) select.value = String(scenes[0].id);
+  }
+}
+
+function syncSampleScene() {
+  populateSceneSelects();
+  const id = Number($("voiceScene").value || S.selectedScene || 1);
+  S.selectedScene = id;
+  $("imageScene").value = String(id);
+  $("clipScene").value = String(id);
+  renderSampleMedia();
+}
+
+function renderSamples() {
+  const settings = S.data.state.settings;
+  const voice = stage("samples.voice");
+  const image = stage("samples.image");
+  const music = stage("samples.music");
+  const clip = stage("samples.clip");
+
+  populateSceneSelects();
+  const sceneId = Number($("voiceScene").value || S.selectedScene || 1);
+  const scene = (S.data.scenes || []).find((s) => s.id === sceneId);
+  if (scene && !$("voiceText").value.trim()) $("voiceText").value = scene.narration || "";
+
+  if (document.activeElement !== $("voiceExag")) $("voiceExag").value = settings.tts.exaggeration ?? 0.5;
+  if (document.activeElement !== $("voiceCfg")) $("voiceCfg").value = settings.tts.cfg_weight ?? 0.3;
+  if (document.activeElement !== $("voiceTemp")) $("voiceTemp").value = settings.tts.temperature ?? 0.8;
+  if (document.activeElement !== $("voiceRef")) $("voiceRef").value = settings.tts.reference || "";
+  if (document.activeElement !== $("musicPrompt")) $("musicPrompt").value = settings.music.prompt || "";
+  if (document.activeElement !== $("musicDuration")) $("musicDuration").value = settings.music.duration ?? 60;
+  if (document.activeElement !== $("musicBpm")) $("musicBpm").value = settings.music.bpm ?? 78;
+  if (document.activeElement !== $("musicKey")) $("musicKey").value = settings.music.key || "C minor";
+  if (document.activeElement !== $("imageEngine")) $("imageEngine").value = settings.image.engine || "sdxl";
+
+  setSampleStatus("sampleVoiceStatus", voice.status);
+  setSampleStatus("sampleImageStatus", image.status);
+  setSampleStatus("sampleMusicStatus", music.status);
+  setSampleStatus("sampleClipStatus", clip.status);
+  renderChecks("voiceChecks", voice.validation);
+  const normalizedText = voice.normalized_text || S.voicePreviewText;
+  if (normalizedText) {
+    $("voiceNormalized").textContent = normalizedText;
+    $("voiceNormalizedWrap").classList.remove("hidden");
+  } else {
+    $("voiceNormalized").textContent = "";
+    $("voiceNormalizedWrap").classList.add("hidden");
+  }
+  renderChecks("imageChecks", image.validation);
+  renderChecks("musicChecks", music.validation);
+  renderChecks("clipChecks", clip.validation);
+  renderSampleMedia();
+  updateRangeLabels();
+}
+
+function setSampleStatus(id, status) {
+  const el = $(id);
+  el.textContent = statusText(status);
+  el.className = `status ${statusClass(status)}`;
+}
+
+function renderSampleMedia() {
+  const voice = S.data.samples?.voice;
+  const image = S.data.samples?.image;
+  const music = S.data.samples?.music;
+  const clip = S.data.samples?.clip;
+
+  const statusById = Object.fromEntries((S.data.scene_status || []).map((s) => [s.id, s]));
+  const sceneFile = (sceneId, dir, ext) =>
+    `/api/projects/${S.pid}/media/${dir}/scene_${String(sceneId).padStart(3, "0")}.${ext}`;
+  const voiceSceneId = Number($("voiceScene")?.value || 1);
+  const imageSceneId = Number($("imageScene")?.value || 1);
+  const voiceSt = statusById[voiceSceneId] || {};
+  const imageSt = statusById[imageSceneId] || {};
+
+  // Imported projects have approved stages but no saved sample file: fall back
+  // to the real project assets for the currently selected scene.
+  toggleMedia("voiceAudio", voice?.url || (voiceSt.audio ? sceneFile(voiceSceneId, "audio", "wav") : ""));
+  toggleMedia("musicAudio", music?.url || S.data.project_audio?.music || "");
+  toggleMedia("clipVideo", clip?.url);
+
+  const img = $("imagePreview");
+  const imageUrl = image?.url || (imageSt.image ? sceneFile(imageSceneId, "images", "png") : "");
+  if (imageUrl) {
+    if (img.getAttribute("src") !== imageUrl) img.src = imageUrl;
+    img.classList.remove("hidden");
+  } else {
+    img.removeAttribute("src");
+    img.classList.add("hidden");
+  }
+}
+
+function toggleMedia(id, url) {
+  const el = $(id);
+  if (url) {
+    // Avoid resetting playback when an unrelated re-render happens.
+    if (el.getAttribute("src") !== url) el.src = url;
+    el.classList.remove("hidden");
+  } else {
+    if (el.hasAttribute("src")) {
+      el.pause?.();
+      el.removeAttribute("src");
+      el.load?.();
+    }
+    el.classList.add("hidden");
+  }
+}
+
+function showNormalizedText(text) {
+  $("voiceNormalized").textContent = text;
+  $("voiceNormalizedWrap").classList.remove("hidden");
+  $("voiceNormalizedWrap").open = true;
+}
+
+async function previewVoiceText() {
+  const text = $("voiceText").value.trim();
+  if (!text) return toast("Voice text is empty", "error");
+  try {
+    const res = await api(`/api/projects/${S.pid}/tts/normalize`, {
+      method: "POST", body: { text },
+    });
+    S.voicePreviewText = res.text;
+    showNormalizedText(res.text);
+    toast("Spoken text updated");
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function generateVoice() {
+  const text = $("voiceText").value.trim();
+  if (!text) return toast("Voice text is empty", "error");
+  try {
+    const res = await api(`/api/projects/${S.pid}/samples/voice`, {
+      method: "POST",
+      body: {
+        text,
+        scene_id: Number($("voiceScene").value || S.selectedScene),
+        overrides: {
+          exaggeration: Number($("voiceExag").value),
+          cfg_weight: Number($("voiceCfg").value),
+          temperature: Number($("voiceTemp").value),
+          reference: $("voiceRef").value.trim(),
+        },
+      },
+    });
+    startJob(res);
+    toast("Voice sample started");
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function generateImage() {
+  try {
+    const res = await api(`/api/projects/${S.pid}/samples/image`, {
+      method: "POST",
+      body: {
+        scene_id: Number($("imageScene").value || S.selectedScene),
+        engine: $("imageEngine").value,
+        seed: Number($("imageSeed").value || 0),
+      },
+    });
+    startJob(res);
+    toast("Image sample started");
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function generateMusic() {
+  try {
+    const res = await api(`/api/projects/${S.pid}/samples/music`, {
+      method: "POST",
+      body: {
+        prompt: $("musicPrompt").value.trim(),
+        duration: Number($("musicDuration").value || 60),
+        bpm: Number($("musicBpm").value || 78),
+        key: $("musicKey").value.trim() || "C minor",
+      },
+    });
+    startJob(res);
+    toast("Music sample started");
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function generateClip() {
+  try {
+    const res = await api(`/api/projects/${S.pid}/samples/clip`, {
+      method: "POST",
+      body: {
+        scene_id: Number($("clipScene").value || S.selectedScene),
+        subtitles: $("clipSubtitles").checked,
+        with_music: $("clipMusic").checked,
+      },
+    });
+    startJob(res);
+    toast("Preview clip started");
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function approveSample(kind) {
+  try {
+    await api(`/api/projects/${S.pid}/samples/${kind}/approve`, { method: "POST" });
+    toast(`${kind} sample approved`);
+    await loadProject();
+  } catch (e) {
+    if (e.detail?.validation) {
+      const map = { voice: "voiceChecks", image: "imageChecks", music: "musicChecks", clip: "clipChecks" };
+      renderChecks(map[kind], e.detail.validation);
+    }
+    toast(e.message, "error");
+  }
+}
+
+async function rejectSample(kind) {
+  const notes = window.prompt(`Why reject the ${kind} sample?`, "");
+  if (notes === null) return;
+  try {
+    await api(`/api/projects/${S.pid}/samples/${kind}/reject`, {
+      method: "POST", body: { notes },
+    });
+    toast(`${kind} sample rejected`);
+    await loadProject();
+  } catch (e) { toast(e.message, "error"); }
+}
+
+function updateRangeLabels() {
+  $("voiceExagVal").textContent = Number($("voiceExag").value).toFixed(2);
+  $("voiceCfgVal").textContent = Number($("voiceCfg").value).toFixed(2);
+  $("voiceTempVal").textContent = Number($("voiceTemp").value).toFixed(2);
+  $("storyTempVal").textContent = Number($("storyTemp").value).toFixed(2);
+}
+
+function updateStoryPlanHint() {
+  const minutes = Number($("storyMinutes").value || 5);
+  const chapters = Math.max(1, Number($("storyChapters").value || 5));
+  const target = Math.round(minutes * 130);
+  const perChapter = Math.round(target / chapters);
+  const el = $("storyPlanHint");
+  if (!el) return;
+  if (!minutes) {
+    el.textContent = "";
+    return;
+  }
+  el.textContent =
+    `~${target} words total, ~${perChapter} words per chapter.` +
+    (perChapter > 2600 ? " Add more chapters so local models do not truncate." : "");
+  el.style.color = perChapter > 2600 ? "var(--amber)" : "";
+}
+
+// ---------------------------------------------------------------------------
+// Production
+// ---------------------------------------------------------------------------
+
+function renderProduction() {
+  const gates = S.data.gates?.gates || {};
+  const labels = {
+    story: "Story approved",
+    scenes: "Scene plan approved",
+    voice: "Voice sample approved",
+    image: "Image sample approved",
+    music: "Music sample approved",
+    clip: "Preview clip approved",
+  };
+  $("productionGates").innerHTML =
+    `<div class="card-head"><h3>Approval gates</h3><span class="hint">${S.data.gates?.ok ? "Ready for batch" : "Approve every gate before batch generation"}</span></div>` +
+    `<div class="gate-list">${Object.entries(labels).map(([key, label]) =>
+      `<div class="gate ${gates[key] ? "on" : ""}"><span class="gate-check">${gates[key] ? "✓" : ""}</span><span>${label}</span></div>`
+    ).join("")}</div>`;
+  $("startProduction").disabled = !S.data.gates?.ok || !!S.data.active_job;
+
+  const status = S.data.scene_status || [];
+  $("sceneAssetSummary").textContent =
+    `${status.filter((s) => s.image).length}/${status.length} images · ${status.filter((s) => s.audio).length}/${status.length} voice`;
+  $("sceneStatusTable").querySelector("tbody").innerHTML = status.map((s) =>
+    `<tr>
+      <td class="mono">${String(s.id).padStart(2, "0")}</td>
+      <td>${s.words}</td>
+      <td class="${s.image ? "ok" : "no"}">${s.image ? "ready" : "missing"}</td>
+      <td class="${s.audio ? "ok" : "no"}">${s.audio ? "ready" : "missing"}</td>
+      <td>${s.duration ? `${s.duration.toFixed(1)}s` : "—"}</td>
+      <td>
+        <button class="btn ghost small" data-retry="image" data-scene="${s.id}">Image</button>
+        <button class="btn ghost small" data-retry="voice" data-scene="${s.id}">Voice</button>
+      </td>
+    </tr>`
+  ).join("") || `<tr><td colspan="6">No scenes yet.</td></tr>`;
+
+  renderJobPanel();
+}
+
+function renderJobPanel() {
+  const job = S.job;
+  const pct = job ? Number(job.progress || 0) : 0;
+  $("prodBar").style.width = `${pct}%`;
+  $("prodPct").textContent = job ? `${job.kind} · ${pct}% · ${job.status}` : "idle";
+  $("prodLog").textContent = job?.logs?.length ? job.logs.join("\n") : (job ? job.message : "No job running.");
+}
+
+async function startProduction() {
+  const stages = [];
+  if ($("prodImages").checked) stages.push("images");
+  if ($("prodMusic").checked) stages.push("music");
+  if ($("prodTts").checked) stages.push("tts");
+  if ($("prodAssemble").checked) stages.push("assemble");
+  if (!stages.length) return toast("Select at least one stage", "error");
+  try {
+    const res = await api(`/api/projects/${S.pid}/production/start`, {
+      method: "POST",
+      body: { stages, subtitles: $("prodSubtitles").checked },
+    });
+    startJob(res);
+    toast("Batch production started");
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function retryScene(sceneId, kind) {
+  try {
+    const res = await api(`/api/projects/${S.pid}/production/retry`, {
+      method: "POST",
+      body: { scene_id: sceneId, kind },
+    });
+    startJob(res);
+    toast(`Scene ${sceneId} ${kind} retry started`);
+  } catch (e) { toast(e.message, "error"); }
+}
+
+// ---------------------------------------------------------------------------
+// Final
+// ---------------------------------------------------------------------------
+
+function renderFinal() {
+  const node = stage("final");
+  $("finalStatus").textContent = statusText(node.status);
+  $("finalStatus").className = `status ${statusClass(node.status)}`;
+  renderChecks("finalChecks", node.validation);
+
+  let url = null;
+  if (node.path) url = `/api/projects/${S.pid}/media/${node.path}`;
+  if (!url && S.data.outputs?.["final.mp4"]?.url) url = S.data.outputs["final.mp4"].url;
+  const video = $("finalVideo");
+  if (url) {
+    if (video.getAttribute("src") !== url) video.src = url;
+    video.classList.remove("hidden");
+    $("finalEmpty").classList.add("hidden");
+  } else {
+    if (video.hasAttribute("src")) {
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+    }
+    video.classList.add("hidden");
+    $("finalEmpty").classList.remove("hidden");
+  }
+  $("finalLinks").innerHTML = url ? `<a class="btn" href="${url}" download>Download final.mp4</a>` : "";
+  if (document.activeElement !== $("finalSubtitles")) {
+    $("finalSubtitles").checked = !!S.data.state.settings.subtitles;
+  }
+  $("renderFinal").disabled =
+    !S.data.gates?.ok || stageStatus("production") !== "done" || !!S.data.active_job;
+  $("approveFinal").disabled = !node.path || !!S.data.active_job;
+}
+
+async function renderFinalVideo() {
+  try {
+    const res = await api(`/api/projects/${S.pid}/final/render`, {
+      method: "POST",
+      body: {
+        subtitles: $("finalSubtitles").checked,
+        out_name: $("finalName").value.trim() || "final.mp4",
+      },
+    });
+    startJob(res);
+    toast("Final render started");
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function approveFinal() {
+  try {
+    await api(`/api/projects/${S.pid}/final/approve`, { method: "POST" });
+    toast("Final render approved");
+    await loadProject();
+  } catch (e) { toast(e.message, "error"); }
+}
+
+// ---------------------------------------------------------------------------
+// Settings
+// ---------------------------------------------------------------------------
+
+function renderSettings() {
+  if (S.settingsDirty) return;
+  const s = S.data.state.settings;
+  $("setLlmProvider").value = s.llm.provider || "ollama";
+  $("setLlmModel").value = s.llm.model || "";
+  $("setOllamaUrl").value = s.llm.ollama_url || s.ollama_url || "";
+  $("setApiBase").value = s.llm.api_base || "https://opencode.ai/inference/go/openai/v1";
+  $("setApiKey").value = "";
+  $("apiKeyStatus").textContent = s.llm.has_api_key ? "API key saved locally" : "No API key saved";
+  $("setComfyUrl").value = s.comfy_url || "";
+  $("setImageEngine").value = s.image.engine || "sdxl";
+  $("setStylePrefix").value = s.image.style_prefix || "";
+  $("setCharacter").value = s.image.character || "";
+  $("setNegativePrompt").value = s.image.negative_prompt || "";
+  $("setImageStylePreset").value = stylePresetFor(
+    s.image.style_prefix, s.image.character, s.image.negative_prompt
+  );
+  markSelectedStyle($("setImageStylePreset").value);
+  $("setWidth").value = s.image.width || 1344;
+  $("setHeight").value = s.image.height || 768;
+  $("setSteps").value = s.image.steps || 28;
+  $("setCfg").value = s.image.cfg || 7;
+  $("setTtsLang").value = s.tts.language_id || "hi";
+  $("setTtsReference").value = s.tts.reference || "";
+  $("setTtsExag").value = s.tts.exaggeration ?? 0.5;
+  $("setTtsCfg").value = s.tts.cfg_weight ?? 0.3;
+  $("setTtsTemp").value = s.tts.temperature ?? 0.8;
+  $("setMusicPrompt").value = s.music.prompt || "";
+  $("setMusicDuration").value = s.music.duration || 300;
+  $("setMusicBpm").value = s.music.bpm || 78;
+  $("setMusicKey").value = s.music.key || "C minor";
+  $("setMusicVolume").value = s.music.volume ?? 0.1;
+  $("setSubtitles").checked = !!s.subtitles;
+}
+
+function collectSettings() {
+  const old = S.data.state.settings;
+  return {
+    llm: {
+      provider: $("setLlmProvider").value,
+      model: $("setLlmModel").value.trim(),
+      ollama_url: $("setOllamaUrl").value.trim(),
+      api_base: $("setApiBase").value.trim(),
+      temperature: old.llm.temperature ?? 0.85,
+      num_predict: old.llm.num_predict ?? 4096,
+    },
+    image: {
+      engine: $("setImageEngine").value,
+      style_prefix: $("setStylePrefix").value.trim(),
+      character: $("setCharacter").value.trim(),
+      negative_prompt: $("setNegativePrompt").value.trim(),
+      width: Number($("setWidth").value || 1344),
+      height: Number($("setHeight").value || 768),
+      steps: Number($("setSteps").value || 28),
+      cfg: Number($("setCfg").value || 7),
+      sampler: old.image.sampler || "res_multistep",
+      scheduler: old.image.scheduler || "simple",
+    },
+    tts: {
+      ...old.tts,
+      language_id: $("setTtsLang").value.trim() || "hi",
+      reference: $("setTtsReference").value.trim(),
+      exaggeration: Number($("setTtsExag").value || 0.5),
+      cfg_weight: Number($("setTtsCfg").value || 0.3),
+      temperature: Number($("setTtsTemp").value || 0.8),
+    },
+    music: {
+      prompt: $("setMusicPrompt").value.trim(),
+      duration: Number($("setMusicDuration").value || 300),
+      bpm: Number($("setMusicBpm").value || 78),
+      key: $("setMusicKey").value.trim() || "C minor",
+      volume: Number($("setMusicVolume").value || 0.1),
+    },
+    comfy_url: $("setComfyUrl").value.trim(),
+    ollama_url: $("setOllamaUrl").value.trim(),
+    subtitles: $("setSubtitles").checked,
+    video: old.video || { width: 1920, height: 1080, fps: 30 },
+    story_chapters: old.story_chapters || 5,
+    story_minutes: old.story_minutes || 5,
+    story_topic: old.story_topic || "",
+  };
+}
+
+async function saveSettings() {
+  try {
+    await api(`/api/projects/${S.pid}/settings`, {
+      method: "PATCH", body: { settings: collectSettings() },
+    });
+    S.settingsDirty = false;
+    toast("Settings saved");
+    await loadProject();
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function saveApiKey() {
+  try {
+    const res = await api(`/api/projects/${S.pid}/settings/api-key`, {
+      method: "POST", body: { key: $("setApiKey").value.trim() },
+    });
+    $("setApiKey").value = "";
+    $("apiKeyStatus").textContent = res.has_api_key ? "API key saved locally" : "No API key saved";
+    toast("API key updated");
+    await loadModels();
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function loadModels() {
+  const provider = $("llmProvider").value;
+  const base = providerBase(provider);
+  $("modelHint").textContent = "Loading models...";
+  try {
+    const res = await api(`/api/models?provider=${encodeURIComponent(provider)}&base_url=${encodeURIComponent(base)}`);
+    const listed = res.models || [];
+    const suggestions = res.suggestions || [];
+    const shown = listed.length ? listed : suggestions;
+    $("modelOptions").innerHTML = shown.map((m) => `<option value="${esc(m)}"></option>`).join("");
+    if (res.ok) {
+      const keyNote = provider !== "ollama" && !S.data?.state?.settings?.llm?.has_api_key
+        ? " · save a key in Settings to generate"
+        : "";
+      $("modelHint").textContent = `${listed.length} models available · ${res.base_url || base}${keyNote}`;
+    } else {
+      const keyHint = provider === "ollama" ? "" : " — save an OpenCode API key in Settings.";
+      const suggestHint = suggestions.length
+        ? ` Suggested: ${suggestions.slice(0, 5).join(", ")}.`
+        : "";
+      $("modelHint").textContent = `${res.error}${keyHint}${suggestHint}`;
+    }
+  } catch (e) {
+    $("modelHint").textContent = e.message;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Jobs
+// ---------------------------------------------------------------------------
+
+function startJob(res) {
+  if (!res?.job) return;
+  S.jobId = res.job.id;
+  S.job = { ...res.job, logs: [] };
+  startPolling();
+}
+
+function startPolling() {
+  clearInterval(S.poll);
+  S.poll = setInterval(pollJob, 1000);
+  pollJob();
+}
+
+async function pollJob() {
+  if (!S.jobId) return;
+  try {
+    const job = await api(`/api/jobs/${S.jobId}`);
+    S.job = job;
+    renderJobPill();
+    renderJobPanel();
+    if (job.status === "done" || job.status === "failed") {
+      clearInterval(S.poll);
+      S.poll = null;
+      $("jobPill").classList.add("hidden");
+      if (job.status === "failed") toast(job.error || "Job failed", "error");
+      else toast("Job complete", "ok");
+      await loadProject();
+      S.job = job;
+      renderJobPanel();
+    }
+  } catch (e) {
+    // A transient poll failure should not kill the UI.
+    console.warn(e);
+  }
+}
+
+function renderJobPill() {
+  const job = S.job;
+  const pill = $("jobPill");
+  if (!job || !["queued", "running"].includes(job.status)) {
+    pill.classList.add("hidden");
+    return;
+  }
+  pill.classList.remove("hidden");
+  $("jobPillText").textContent = job.message || job.kind;
+  $("jobPillPct").textContent = `${job.progress || 0}%`;
+}
+
+// ---------------------------------------------------------------------------
+// New project modal
+// ---------------------------------------------------------------------------
+
+function openModal() { $("modal").classList.remove("hidden"); }
+function closeModal() { $("modal").classList.add("hidden"); }
+
+async function createProject() {
+  const title = $("newTitle").value.trim();
+  if (!title) return toast("Title is required", "error");
+  try {
+    const res = await api("/api/projects", {
+      method: "POST",
+      body: {
+        title,
+        topic: $("newTopic").value.trim(),
+        minutes: Number($("newMinutes").value || 5),
+        chapters: Number($("newChapters").value || 5),
+      },
+    });
+    closeModal();
+    await loadProjects();
+    S.pid = res.id;
+    await selectProject(res.id);
+    showPage("story");
+    toast("Project created");
+  } catch (e) { toast(e.message, "error"); }
+}
+
+// ---------------------------------------------------------------------------
+// Events
+// ---------------------------------------------------------------------------
+
+function bind() {
+  $("projectSelect").addEventListener("change", (e) => selectProject(e.target.value));
+  $("settingsBtn").addEventListener("click", () => showPage("settings"));
+  $("newProjectBtn").addEventListener("click", openModal);
+  $("closeModal").addEventListener("click", closeModal);
+  $("createProject").addEventListener("click", createProject);
+  $("modal").addEventListener("click", (e) => { if (e.target.id === "modal") closeModal(); });
+
+  $$(".stage-link").forEach((el) => el.addEventListener("click", () => showPage(el.dataset.page)));
+  window.addEventListener("hashchange", () => {
+    const page = location.hash.replace(/^#/, "");
+    if (["story", "scenes", "samples", "production", "final", "settings"].includes(page) && page !== S.page) {
+      showPage(page);
+    }
+  });
+
+  $("generateStory").addEventListener("click", generateStory);
+  $("saveStory").addEventListener("click", saveStory);
+  $("approveStory").addEventListener("click", approveStory);
+  $("requestStoryChanges").addEventListener("click", requestStoryChanges);
+  $("storyText").addEventListener("input", () => {
+    S.storyDirty = true;
+    const words = $("storyText").value.trim() ? $("storyText").value.trim().split(/\s+/).length : 0;
+    $("storyWords").textContent = `${words} words`;
+  });
+  $("storyTemp").addEventListener("input", updateRangeLabels);
+  $("storyTopic").addEventListener("input", () => { S.topicDirty = true; });
+  $("storyInstructions").addEventListener("input", () => { S.instructionsDirty = true; });
+  ["storyMinutes", "storyChapters"].forEach((id) =>
+    $(id).addEventListener("input", updateStoryPlanHint)
+  );
+  $("llmProvider").addEventListener("change", () => {
+    const provider = $("llmProvider").value;
+    $("setLlmProvider").value = provider;
+    applyProviderPreset(provider);
+    if (PROVIDER_DEFAULT_MODELS[provider]) {
+      $("storyModel").value = PROVIDER_DEFAULT_MODELS[provider];
+      $("setLlmModel").value = PROVIDER_DEFAULT_MODELS[provider];
+    }
+    $("storyModel").placeholder = provider === "ollama"
+      ? "aya-expanse:8b"
+      : (PROVIDER_MODEL_HINTS[provider] || "model ID");
+    loadModels();
+  });
+  $("refreshModels").addEventListener("click", loadModels);
+
+  $("generateScenes").addEventListener("click", generateScenes);
+  $("repairPrompts").addEventListener("click", repairPrompts);
+  $("restylePrompts").addEventListener("click", restylePrompts);
+  $("saveScenes").addEventListener("click", saveScenes);
+  $("approveScenes").addEventListener("click", approveScenes);
+  $("addScene").addEventListener("click", addScene);
+  $("sceneFilter").addEventListener("input", () => {
+    if (S.sceneDirty) S.data.scenes = collectScenes();
+    renderSceneList();
+  });
+  $("sceneList").addEventListener("input", () => { S.sceneDirty = true; });
+  $("sceneList").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-use-scene]");
+    if (btn) useScene(btn.dataset.useScene);
+  });
+
+  $("voiceScene").addEventListener("change", () => {
+    S.selectedScene = Number($("voiceScene").value || 1);
+    const scene = (S.data.scenes || []).find((s) => s.id === S.selectedScene);
+    if (scene) $("voiceText").value = scene.narration || "";
+    syncSampleScene();
+  });
+  $("imageScene").addEventListener("change", () => {
+    S.selectedScene = Number($("imageScene").value || 1);
+    syncSampleScene();
+  });
+  $("clipScene").addEventListener("change", () => {
+    S.selectedScene = Number($("clipScene").value || 1);
+    syncSampleScene();
+  });
+  ["voiceExag", "voiceCfg", "voiceTemp"].forEach((id) => $(id).addEventListener("input", updateRangeLabels));
+  $("genVoice").addEventListener("click", generateVoice);
+  $("previewVoiceText").addEventListener("click", previewVoiceText);
+  $("genImage").addEventListener("click", generateImage);
+  $("genMusic").addEventListener("click", generateMusic);
+  $("genClip").addEventListener("click", generateClip);
+  $("approveVoice").addEventListener("click", () => approveSample("voice"));
+  $("approveImage").addEventListener("click", () => approveSample("image"));
+  $("approveMusic").addEventListener("click", () => approveSample("music"));
+  $("approveClip").addEventListener("click", () => approveSample("clip"));
+  $("rejectVoice").addEventListener("click", () => rejectSample("voice"));
+  $("rejectImage").addEventListener("click", () => rejectSample("image"));
+  $("rejectMusic").addEventListener("click", () => rejectSample("music"));
+  $("rejectClip").addEventListener("click", () => rejectSample("clip"));
+
+  $("startProduction").addEventListener("click", startProduction);
+  $("sceneStatusTable").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-retry]");
+    if (btn) retryScene(Number(btn.dataset.scene), btn.dataset.retry);
+  });
+
+  $("renderFinal").addEventListener("click", renderFinalVideo);
+  $("approveFinal").addEventListener("click", approveFinal);
+
+  $("saveSettings").addEventListener("click", saveSettings);
+  $("saveApiKey").addEventListener("click", saveApiKey);
+  $("setLlmProvider").addEventListener("change", () => {
+    const provider = $("setLlmProvider").value;
+    $("llmProvider").value = provider;
+    applyProviderPreset(provider);
+    if (PROVIDER_DEFAULT_MODELS[provider]) {
+      $("setLlmModel").value = PROVIDER_DEFAULT_MODELS[provider];
+      $("storyModel").value = PROVIDER_DEFAULT_MODELS[provider];
+    }
+    S.settingsDirty = true;
+  });
+  $("setImageStylePreset").addEventListener("change", () => {
+    const key = $("setImageStylePreset").value;
+    const preset = STYLE_PRESETS[key];
+    if (preset) {
+      $("setStylePrefix").value = preset.prefix;
+      $("setCharacter").value = preset.character;
+      $("setNegativePrompt").value = preset.negative;
+      $("setImageEngine").value = preset.engine;
+      toast(`Style preset loaded · recommended engine: ${preset.engine}`);
+    }
+    markSelectedStyle(key);
+    S.settingsDirty = true;
+  });
+  $("styleGallery").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-style]");
+    if (!button) return;
+    const select = $("setImageStylePreset");
+    select.value = button.dataset.style;
+    select.dispatchEvent(new Event("change"));
+  });
+  ["setStylePrefix", "setCharacter", "setNegativePrompt"].forEach((id) =>
+    $(id).addEventListener("input", () => {
+      $("setImageStylePreset").value = "custom";
+      markSelectedStyle("custom");
+      S.settingsDirty = true;
+    })
+  );
+  $("page-settings").addEventListener("input", () => { S.settingsDirty = true; });
+  $("page-settings").addEventListener("change", () => { S.settingsDirty = true; });
+}
+
+boot();

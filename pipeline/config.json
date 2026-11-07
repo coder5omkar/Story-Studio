@@ -1,0 +1,31 @@
+{
+  "comfy_url": "http://127.0.0.1:8188",
+  "ollama_url": "http://127.0.0.1:11434",
+  "story_model": "aya-expanse:8b",
+  "project_dir": "../projects/pilot_001",
+  "image": {
+    "width": 1344,
+    "height": 768,
+    "steps": 8,
+    "cfg": 1.0,
+    "sampler": "res_multistep",
+    "scheduler": "simple",
+    "style_prefix": "minimalist 2D webcomic educational explainer illustration, flat clean vector lines, solid flat colors, no shading, no gradients, simple shapes with detailed flat backgrounds, clear daylight, wide 16:9 composition, Infographics Show and Kurzgesagt inspired, no text, no watermark",
+    "character": "the protagonist is a simple stick figure character with a large round white head, two dot eyes, a small straight-line mouth, wearing a long-sleeve grey-blue shirt and dark blue jeans",
+    "negative_prompt": "low quality, blurry, text, watermark, logo, signature, photorealistic, 3D render, realistic human, realistic skin texture, detailed face, detailed eyes, detailed mouth, nose, ears, beard, mustache, hair, neck, tie, collar, buttons, suit, shirt cuffs, white shirt, smile, curved mouth, grin, eyebrows, teeth, realistic hands, muscular body, realistic proportions, mannequin, statue, doll, shading, gradients, soft shadows, complex clothing folds, deformed, extra fingers, bad anatomy"
+  },
+  "tts": {
+    "model": "chatterbox-multilingual",
+    "language_id": "hi",
+    "reference": "../models/piper/hindi_ref.wav",
+    "exaggeration": 0.5,
+    "cfg_weight": 0.3,
+    "temperature": 0.8
+  },
+  "music": {
+    "prompt": "emotional Indian cinematic background score, soft piano, warm strings, subtle tabla, melancholic but hopeful, instrumental, no vocals, slow build",
+    "bpm": 78,
+    "key": "C minor",
+    "duration": 300
+  }
+}

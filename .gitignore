@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+
+# Node
+node_modules/
+
+# Local tools and model weights (not part of this repository)
+OpenMontage/
+tts_env/
+models/
+
+# Generated projects, renders, and logs
+projects/
+.backlot/
+*.log
+
+# Secrets
+studio/.secrets.json
+.env
+.env.*

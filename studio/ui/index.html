@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Story Studio</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23090b0f'/%3E%3Ccircle cx='32' cy='32' r='14' fill='%23f0b35c'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/ui/styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="brand-dot"></span> STORY <b>STUDIO</b></div>
+  <div class="project-picker">
+    <select id="projectSelect" aria-label="Project"></select>
+    <button id="newProjectBtn" class="btn ghost small">+ New project</button>
+  </div>
+  <div class="top-spacer"></div>
+  <button id="settingsBtn" class="btn ghost small" title="Open settings">⚙ Settings</button>
+  <div id="services" class="services" title="Service status"></div>
+  <div id="jobPill" class="job-pill hidden">
+    <span class="spinner"></span>
+    <span id="jobPillText">Working</span>
+    <span id="jobPillPct" class="mono"></span>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="rail">
+    <div class="rail-project">
+      <div class="eyebrow">PROJECT</div>
+      <h1 id="projectTitle">Select a project</h1>
+      <div id="projectMeta" class="meta"></div>
+    </div>
+
+    <nav id="stageNav" class="stage-nav">
+      <button data-page="story" class="stage-link">
+        <span class="stage-num">01</span><span class="stage-name">Story</span>
+        <span class="stage-badge" id="badge-story">empty</span>
+      </button>
+      <button data-page="scenes" class="stage-link">
+        <span class="stage-num">02</span><span class="stage-name">Scene plan</span>
+        <span class="stage-badge" id="badge-scenes">empty</span>
+      </button>
+      <button data-page="samples" class="stage-link">
+        <span class="stage-num">03</span><span class="stage-name">Sample studio</span>
+        <span class="stage-badge" id="badge-samples">empty</span>
+      </button>
+      <button data-page="production" class="stage-link">
+        <span class="stage-num">04</span><span class="stage-name">Production</span>
+        <span class="stage-badge" id="badge-production">empty</span>
+      </button>
+      <button data-page="final" class="stage-link">
+        <span class="stage-num">05</span><span class="stage-name">Final review</span>
+        <span class="stage-badge" id="badge-final">empty</span>
+      </button>
+      <button data-page="settings" class="stage-link settings-link">
+        <span class="stage-num">⚙</span><span class="stage-name">Settings</span>
+      </button>
+    </nav>
+
+    <div class="gate-card">
+      <div class="eyebrow">APPROVAL GATES</div>
+      <div id="gateList" class="gate-list"></div>
+      <div class="gate-hint">Long jobs cannot start until every required gate is approved.</div>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <!-- STORY -->
+    <section id="page-story" class="page">
+      <div class="page-head">
+        <div><div class="eyebrow">STAGE 01</div><h2>Story</h2><p class="sub">Generate, edit, validate, then approve the script before scene planning.</p></div>
+        <div class="page-actions"><span id="storyStatus" class="status"></span></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3>Generate a draft</h3>
+          <label>Provider
+            <select id="llmProvider">
+              <option value="ollama">Local Ollama (free)</option>
+              <option value="opencode-go">OpenCode Go (subscription)</option>
+              <option value="opencode">OpenCode pay-as-you-go</option>
+              <option value="openai">Other OpenAI-compatible</option>
+            </select>
+          </label>
+          <label>Model
+            <div class="input-row">
+              <input id="storyModel" list="modelOptions" placeholder="aya-expanse:8b">
+              <button id="refreshModels" class="btn ghost small" title="Refresh model list">↻</button>
+            </div>
+            <datalist id="modelOptions"></datalist>
+            <span id="modelHint" class="hint"></span>
+          </label>
+          <p class="hint">Hindi story suggestions: <b>deepseek-v4.1-flash</b> for fast, reliable drafts; <b>kimi-k3.1-pro</b> for more literary prose (allow a larger output budget).</p>
+          <label>Topic / premise
+            <textarea id="storyTopic" rows="3" placeholder="A small-town singer gets one last chance..."></textarea>
+          </label>
+          <label>Story instructions (optional)
+            <textarea id="storyInstructions" rows="3" placeholder="Genre, tone, ending, themes to include or avoid..."></textarea>
+          </label>
+          <p class="hint">Your topic and instructions are passed to the model. To keep a story away from finance, say so here explicitly.</p>
+          <div class="row">
+            <label>Minutes <input id="storyMinutes" type="number" min="1" max="180" step="1" value="5"></label>
+            <label>Chapters <input id="storyChapters" type="number" min="1" max="20" step="1" value="5"></label>
+          </div>
+          <p id="storyPlanHint" class="hint"></p>
+          <label>Creativity <span id="storyTempVal" class="mono">0.85</span>
+            <input id="storyTemp" type="range" min="0.1" max="1.2" step="0.05" value="0.85">
+          </label>
+          <button id="generateStory" class="btn primary wide">Generate story</button>
+          <p class="hint">For long stories the studio writes an outline first, then one chapter at a time so a 2–3 hour script does not get truncated. Use 10–16 chapters for the longest scripts.</p>
+        </div>
+
+        <div class="card editor-card">
+          <div class="card-head"><h3>Draft</h3><span id="storyWords" class="mono muted"></span></div>
+          <textarea id="storyText" class="editor" spellcheck="false" placeholder="The generated Hindi story appears here. You can edit it directly."></textarea>
+          <div class="row wrap">
+            <button id="saveStory" class="btn">Save draft</button>
+            <button id="approveStory" class="btn primary">Approve story</button>
+            <button id="requestStoryChanges" class="btn danger ghost">Request changes</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Quality checks</h3><span id="storyScore" class="score"></span></div>
+        <div id="storyChecks" class="check-grid"></div>
+      </div>
+    </section>
+
+    <!-- SCENES -->
+    <section id="page-scenes" class="page">
+      <div class="page-head">
+        <div><div class="eyebrow">STAGE 02</div><h2>Scene plan</h2><p class="sub">One narration chunk + one English image prompt per scene. Review pacing and prompts before generating assets.</p></div>
+        <div class="page-actions">
+          <button id="repairPrompts" class="btn ghost" title="Translate non-English or too-short image prompts">Fix English prompts</button>
+          <button id="restylePrompts" class="btn ghost" title="Rewrite all scene prompts for the selected visual style">Restyle for current style</button>
+          <button id="addScene" class="btn ghost">+ Add scene</button>
+          <button id="saveScenes" class="btn">Save plan</button>
+          <button id="approveScenes" class="btn primary">Approve plan</button>
+        </div>
+      </div>
+
+      <div class="card slim">
+        <div class="row wrap align-end">
+          <label>Target words / scene <input id="sceneTargetWords" type="number" min="8" max="80" value="24"></label>
+          <label>Batch size <input id="sceneBatch" type="number" min="1" max="30" value="12"></label>
+          <button id="generateScenes" class="btn primary">Generate scene plan</button>
+          <span id="sceneGenHint" class="hint"></span>
+        </div>
+      </div>
+
+      <div id="sceneStats" class="stats"></div>
+      <div id="sceneChecks" class="card check-grid"></div>
+      <div class="scene-filter card slim">
+        <input id="sceneFilter" placeholder="Filter scenes by text...">
+        <span id="sceneFilterCount" class="hint"></span>
+      </div>
+      <div id="sceneList" class="scene-list"></div>
+    </section>
+
+    <!-- SAMPLES -->
+    <section id="page-samples" class="page">
+      <div class="page-head">
+        <div><div class="eyebrow">STAGE 03</div><h2>Sample studio</h2><p class="sub">Audition one scene before committing hours of GPU time. Approve voice, image, music and the rendered subtitle preview.</p></div>
+      </div>
+
+      <div class="grid-2 sample-grid">
+        <!-- VOICE -->
+        <div class="card">
+          <div class="card-head"><h3>Voice</h3><span id="sampleVoiceStatus" class="status"></span></div>
+          <label>Scene <select id="voiceScene"></select></label>
+          <label>Text to speak <textarea id="voiceText" rows="4"></textarea></label>
+          <div class="row wrap">
+            <label class="range-label">Exaggeration <span id="voiceExagVal" class="mono">0.50</span><input id="voiceExag" type="range" min="0" max="1" step="0.05" value="0.5"></label>
+            <label class="range-label">CFG <span id="voiceCfgVal" class="mono">0.30</span><input id="voiceCfg" type="range" min="0" max="1" step="0.05" value="0.3"></label>
+            <label class="range-label">Temperature <span id="voiceTempVal" class="mono">0.80</span><input id="voiceTemp" type="range" min="0.1" max="1.2" step="0.05" value="0.8"></label>
+          </div>
+          <label>Reference voice WAV <input id="voiceRef" type="text" placeholder="D:/AI_Story_Channel/models/piper/hindi_ref.wav"></label>
+          <div class="row wrap"><button id="previewVoiceText" class="btn ghost">Preview spoken text</button><button id="genVoice" class="btn primary">Generate voice sample</button><button id="approveVoice" class="btn">Approve voice</button><button id="rejectVoice" class="btn danger ghost">Reject</button></div>
+          <p class="hint">Amounts, percentages and acronyms are converted to Hindi words before synthesis. If the voice sounds unstable, try temperature 0.6 and CFG 0.4–0.5.</p>
+          <audio id="voiceAudio" class="media hidden" controls></audio>
+          <details id="voiceNormalizedWrap" class="normalized-box hidden">
+            <summary>What the voice will read</summary>
+            <div id="voiceNormalized" class="normalized-text"></div>
+          </details>
+          <div id="voiceChecks" class="checks"></div>
+        </div>
+
+        <!-- IMAGE -->
+        <div class="card">
+          <div class="card-head"><h3>Image</h3><span id="sampleImageStatus" class="status"></span></div>
+          <label>Scene <select id="imageScene"></select></label>
+          <div class="row wrap">
+            <label>Engine <select id="imageEngine"><option value="sdxl">SDXL</option><option value="faceid">SDXL + FaceID</option><option value="ipadapter">SDXL + IPAdapter</option><option value="zimage">Z-Image Turbo (best for stick-figure style)</option></select></label>
+            <label>Seed <input id="imageSeed" type="number" min="0" step="1" value="0" placeholder="auto"></label>
+          </div>
+          <p class="hint">Style and character are global settings. Change them in Settings; seed 0 uses the deterministic scene seed. For the minimalist stick-figure look, Z-Image Turbo follows the prompt much better than SDXL.</p>
+          <div class="row wrap"><button id="genImage" class="btn primary">Generate image sample</button><button id="approveImage" class="btn">Approve image</button><button id="rejectImage" class="btn danger ghost">Reject</button></div>
+          <div class="image-frame"><img id="imagePreview" class="media hidden" alt="Scene sample"></div>
+          <div id="imageChecks" class="checks"></div>
+        </div>
+
+        <!-- MUSIC -->
+        <div class="card">
+          <div class="card-head"><h3>Music</h3><span id="sampleMusicStatus" class="status"></span></div>
+          <label>Prompt <textarea id="musicPrompt" rows="3"></textarea></label>
+          <div class="row wrap">
+            <label>Duration (s) <input id="musicDuration" type="number" min="10" max="900" step="10" value="60"></label>
+            <label>BPM <input id="musicBpm" type="number" min="40" max="200" value="78"></label>
+            <label>Key <input id="musicKey" type="text" value="C minor"></label>
+          </div>
+          <div class="row wrap"><button id="genMusic" class="btn primary">Generate music sample</button><button id="approveMusic" class="btn">Approve music</button><button id="rejectMusic" class="btn danger ghost">Reject</button></div>
+          <audio id="musicAudio" class="media hidden" controls></audio>
+          <div id="musicChecks" class="checks"></div>
+        </div>
+
+        <!-- CLIP -->
+        <div class="card">
+          <div class="card-head"><h3>Subtitle / motion preview</h3><span id="sampleClipStatus" class="status"></span></div>
+          <label>Scene <select id="clipScene"></select></label>
+          <div class="row wrap">
+            <label class="check-label"><input id="clipSubtitles" type="checkbox" checked> Burn subtitles</label>
+            <label class="check-label"><input id="clipMusic" type="checkbox" checked> Include music</label>
+          </div>
+          <p class="hint">Renders one real scene through the exact final assembly path, so what you approve is what the batch will produce.</p>
+          <div class="row wrap"><button id="genClip" class="btn primary">Render preview clip</button><button id="approveClip" class="btn">Approve preview</button><button id="rejectClip" class="btn danger ghost">Reject</button></div>
+          <video id="clipVideo" class="media hidden" controls></video>
+          <div id="clipChecks" class="checks"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PRODUCTION -->
+    <section id="page-production" class="page">
+      <div class="page-head">
+        <div><div class="eyebrow">STAGE 04</div><h2>Production</h2><p class="sub">Batch generation is resumable: existing images and voice clips are skipped. Retry individual scenes without redoing the whole run.</p></div>
+        <div class="page-actions"><button id="startProduction" class="btn primary">Start batch production</button></div>
+      </div>
+
+      <div class="card slim">
+        <div class="row wrap align-end">
+          <label class="check-label"><input id="prodImages" type="checkbox" checked> Images</label>
+          <label class="check-label"><input id="prodMusic" type="checkbox" checked> Music</label>
+          <label class="check-label"><input id="prodTts" type="checkbox" checked> Voice</label>
+          <label class="check-label"><input id="prodAssemble" type="checkbox" checked> Assemble</label>
+          <label class="check-label"><input id="prodSubtitles" type="checkbox" checked> Burn subtitles</label>
+        </div>
+      </div>
+
+      <div id="productionGates" class="card"></div>
+
+      <div class="card">
+        <div class="card-head"><h3>Live job</h3><span id="prodPct" class="mono muted">idle</span></div>
+        <div class="progress"><div id="prodBar" class="progress-bar"></div></div>
+        <pre id="prodLog" class="log">No job running.</pre>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Scene assets</h3><span id="sceneAssetSummary" class="hint"></span></div>
+        <div class="table-wrap"><table id="sceneStatusTable"><thead><tr><th>Scene</th><th>Words</th><th>Image</th><th>Voice</th><th>Duration</th><th></th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- FINAL -->
+    <section id="page-final" class="page">
+      <div class="page-head">
+        <div><div class="eyebrow">STAGE 05</div><h2>Final review</h2><p class="sub">Assemble the approved assets, inspect the real output, and only then approve the deliverable.</p></div>
+        <div class="page-actions"><button id="renderFinal" class="btn primary">Render final</button></div>
+      </div>
+
+      <div class="card slim">
+        <div class="row wrap align-end">
+          <label class="check-label"><input id="finalSubtitles" type="checkbox" checked> Burn subtitles</label>
+          <label>Output name <input id="finalName" type="text" value="final.mp4"></label>
+          <button id="approveFinal" class="btn">Approve final</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Output</h3><span id="finalStatus" class="status"></span></div>
+        <video id="finalVideo" class="media final-video hidden" controls></video>
+        <p id="finalEmpty" class="hint">No final render yet.</p>
+        <div id="finalChecks" class="checks"></div>
+        <div class="row wrap" id="finalLinks"></div>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section id="page-settings" class="page">
+      <div class="page-head">
+        <div><div class="eyebrow">CONFIGURATION</div><h2>Settings</h2><p class="sub">These defaults are written into the per-project pipeline config. Changes invalidate the affected approvals.</p></div>
+        <div class="page-actions"><button id="saveSettings" class="btn primary">Save settings</button></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3>Language model</h3>
+          <label>Provider
+            <select id="setLlmProvider">
+              <option value="ollama">Local Ollama</option>
+              <option value="opencode-go">OpenCode Go (subscription)</option>
+              <option value="opencode">OpenCode pay-as-you-go</option>
+              <option value="openai">Other OpenAI-compatible</option>
+            </select>
+          </label>
+          <label>Model <input id="setLlmModel" type="text" placeholder="deepseek-v4.1-flash"></label>
+          <label>Ollama URL <input id="setOllamaUrl" type="text"></label>
+          <label>OpenAI-compatible base URL <input id="setApiBase" type="text" placeholder="https://opencode.ai/inference/go/openai/v1"></label>
+          <label>API key <input id="setApiKey" type="password" placeholder="oc_sk_... (stored locally)"></label>
+          <div class="row wrap"><button id="saveApiKey" class="btn">Save API key</button><span id="apiKeyStatus" class="hint"></span></div>
+          <p class="hint">
+            OpenCode Go chat base: <span class="mono">https://opencode.ai/inference/go/openai/v1</span>.
+            Pay-as-you-go: <span class="mono">https://opencode.ai/inference/openai/v1</span>.
+            Keys start with <span class="mono">oc_sk_</span>; the session header Go requires is added automatically.
+          </p>
+        </div>
+
+        <div class="card">
+          <h3>Visuals</h3>
+          <label>ComfyUI URL <input id="setComfyUrl" type="text"></label>
+          <label>Image engine <select id="setImageEngine"><option value="sdxl">SDXL</option><option value="faceid">SDXL + FaceID</option><option value="ipadapter">SDXL + IPAdapter</option><option value="zimage">Z-Image Turbo (best for stick-figure style)</option></select></label>
+          <label>Style preset
+            <select id="setImageStylePreset">
+              <option value="minimalist">Minimalist explainer (stick figure)</option>
+              <option value="indian-flat">Indian flat-vector (previous)</option>
+              <option value="photoreal">Cinematic photoreal (realistic)</option>
+              <option value="cinematic-dark">Dark cinematic drama (realistic)</option>
+              <option value="anime">Anime / hand-painted</option>
+              <option value="animated-3d">3D animated feature</option>
+              <option value="graphic-novel">Graphic novel / comic</option>
+              <option value="watercolor">Watercolor storybook</option>
+              <option value="vintage-poster">Vintage Indian poster</option>
+              <option value="paper-cutout">Paper cutout collage</option>
+              <option value="custom">Custom</option>
+            </select>
+          </label>
+          <details class="style-gallery-wrap" open>
+            <summary>Style samples — click one to select it</summary>
+            <div id="styleGallery" class="style-gallery"></div>
+          </details>
+          <label>Style prefix <textarea id="setStylePrefix" rows="4"></textarea></label>
+          <label>Recurring character <textarea id="setCharacter" rows="3"></textarea></label>
+          <label>Negative prompt <textarea id="setNegativePrompt" rows="3"></textarea></label>
+          <p class="hint">Each preset sets a recommended engine, style, character and negative prompt. Save settings, use <b>Restyle for current style</b> on the scene plan, then regenerate images.</p>
+          <div class="row wrap">
+            <label>Width <input id="setWidth" type="number" value="1344"></label>
+            <label>Height <input id="setHeight" type="number" value="768"></label>
+            <label>Steps <input id="setSteps" type="number" value="28"></label>
+            <label>CFG <input id="setCfg" type="number" step="0.1" value="7"></label>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Voice</h3>
+          <label>Language ID <input id="setTtsLang" type="text" value="hi"></label>
+          <label>Reference WAV <input id="setTtsReference" type="text"></label>
+          <div class="row wrap">
+            <label>Exaggeration <input id="setTtsExag" type="number" step="0.05" min="0" max="1" value="0.5"></label>
+            <label>CFG <input id="setTtsCfg" type="number" step="0.05" min="0" max="1" value="0.3"></label>
+            <label>Temperature <input id="setTtsTemp" type="number" step="0.05" min="0.1" max="1.2" value="0.8"></label>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Music & output</h3>
+          <label>Music prompt <textarea id="setMusicPrompt" rows="3"></textarea></label>
+          <div class="row wrap">
+            <label>Duration (s) <input id="setMusicDuration" type="number" value="300"></label>
+            <label>BPM <input id="setMusicBpm" type="number" value="78"></label>
+            <label>Key <input id="setMusicKey" type="text" value="C minor"></label>
+            <label>Music volume <input id="setMusicVolume" type="number" step="0.01" min="0" max="1" value="0.10"></label>
+          </div>
+          <label class="check-label"><input id="setSubtitles" type="checkbox" checked> Burn subtitles by default</label>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div id="modal" class="modal hidden">
+  <div class="modal-card">
+    <div class="card-head"><h2>New project</h2><button id="closeModal" class="btn ghost small">✕</button></div>
+    <label>Title <input id="newTitle" type="text" placeholder="The Last Letter"></label>
+    <label>Premise / topic <textarea id="newTopic" rows="3" placeholder="Two lovers separated by circumstances..."></textarea></label>
+    <div class="row">
+      <label>Minutes <input id="newMinutes" type="number" min="1" max="180" value="5"></label>
+      <label>Chapters <input id="newChapters" type="number" min="1" max="20" value="5"></label>
+    </div>
+    <button id="createProject" class="btn primary wide">Create project</button>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+<script type="module" src="/ui/app.js"></script>
+</body>
+</html>

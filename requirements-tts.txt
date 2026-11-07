@@ -1,0 +1,7 @@
+# Install PyTorch with the CUDA build for your GPU first:
+#   https://pytorch.org/get-started/locally/
+# Then install the remaining Chatterbox dependencies in the same environment.
+chatterbox-tts==0.1.7
+soundfile>=0.12
+numpy>=1.26
+transformers>=4.40
