@@ -654,6 +654,37 @@ tr.review-row.selected td:first-child { box-shadow: inset 3px 0 0 var(--amber); 
   .genre-grid, .genre-brief { grid-template-columns: 1fr; }
 }
 
+/* Series room */
+.series-model-row > label { flex: 1 1 220px; }
+.series-model-row .input-row { display: flex; gap: 6px; align-items: center; }
+.series-model-row .input-row input { flex: 1; }
+.cast-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.cast-card {
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, .01);
+}
+.cast-card summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+}
+.cast-name { font-weight: 600; font-size: 13px; }
+.cast-meta { color: var(--muted); font-size: 11px; text-align: right; }
+.cast-card label { margin-top: 10px; }
+.episode-list { display: flex; flex-direction: column; gap: 12px; }
+@media (max-width: 900px) {
+  .cast-grid { grid-template-columns: 1fr; }
+}
+
 .image-frame {
   min-height: 220px;
   border: 1px dashed var(--border);

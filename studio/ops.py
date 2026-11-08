@@ -1204,6 +1204,10 @@ def generate_publish_kit(pid: str, state: dict, job: Job) -> dict:
     if not story:
         raise RuntimeError("Generate or write the story first")
     pub = _publish_settings(state)
+    series_title = str(state.get("settings", {}).get("series_title", "")).strip()
+    episode_number = state.get("settings", {}).get("episode_number", "")
+    episode_pillar = str(state.get("settings", {}).get("episode_pillar", "")).strip()
+    protagonist = str(state.get("settings", {}).get("protagonist", "")).strip()
     job.set_progress(10, "Writing titles and description")
     prompt = f"""
 Channel name: {pub.get('channel_name', '')}
@@ -1211,6 +1215,10 @@ Channel tagline: {pub.get('channel_tagline', '')}
 Contact email: {pub.get('contact_email', '')}
 Default CTA: {pub.get('cta', '')}
 Default hashtags: {pub.get('hashtags', '')}
+Series: {series_title}
+Episode number: {episode_number}
+Episode pillar: {episode_pillar}
+Protagonist: {protagonist}
 
 Story:
 {story[:12000]}
@@ -1218,10 +1226,10 @@ Story:
 Create a YouTube publish kit for this story.
 
 Requirements:
-- titles: 5 catchy Hindi titles, each 35-70 characters. Honest curiosity, no fake claims, no ending spoilers. Include search-friendly words such as "Hindi Kahani" or "Emotional Story" where natural.
-- best_title: the single strongest title. Include the channel name if it fits naturally.
-- description: 1200-1800 characters in Hindi. Paragraph 1: hook and premise without spoiling the ending. Paragraph 2: what the viewer will feel/learn. Paragraph 3: moral, CTA, contact email and hashtags. Include a short fictional-story disclaimer. Use \n\n between paragraphs.
-- tags: 12-18 short YouTube tags in Hindi/English, no # symbols.
+- titles: 5 catchy Hindi titles, each 35-70 characters. Honest curiosity, no fake claims, no ending spoilers. Include search-friendly words such as "Hindi Kahani" or "Emotional Story" where natural. If a series title and episode number are provided, make the best title include the series name and "EP {episode_number}" naturally, e.g. "Simplify Life | EP 3: ...".
+- best_title: the single strongest title. Include the channel name and episode number if they fit naturally.
+- description: 1200-1800 characters in Hindi. Paragraph 1: hook and premise without spoiling the ending. Paragraph 2: what the viewer will feel/learn. Paragraph 3: moral, CTA, contact email and hashtags. If a series is provided, include the series name and episode number near the top and invite viewers to watch the other episodes. Include a short fictional-story disclaimer. Use \n\n between paragraphs.
+- tags: 12-18 short YouTube tags in Hindi/English, no # symbols. Include the series name and episode pillar when provided.
 - thumbnail_text: 3-5 high-impact Hindi words, maximum 28 characters, no punctuation other than a comma if needed.
 - thumbnail_prompt: one English image-generation prompt, 25-50 words, for a cinematic YouTube thumbnail. Show the protagonist's face/emotion and one key story object or moment. Strong composition, leave negative space on the left or bottom for text, no text in the image, no watermark.
 

@@ -28,26 +28,29 @@ rebinding protection). Set `STUDIO_NO_BROWSER=1` to skip opening a browser and
 
 ## Workflow
 
-The rail starts with the **Story table**, then six production stages plus
+The rail starts with the **Series room**, then six production stages plus
 settings, and the gate card lists what is still unapproved.
 
-0. **Story table** — pick what to produce without inventing a premise:
-   - **Suggest 5 genres** asks Claude for five distinct, channel-ready genre
-     pillars. Each has a Hindi channel name, tagline, audience, repeatable story
-     engines and example titles.
-   - **Add your own genre** saves a custom pillar alongside the AI suggestions.
-   - Select a genre and **Generate 3 story ideas**. Each idea is a full blueprint:
-     Hindi hook, logline, 300–450-word premise, explicit ending, protagonist,
-     obstacle, emotional arc, retention beats, chapter beats and thumbnail moment.
-   - **Use this story** creates a project pre-filled with the blueprint and genre
-     channel; **Use & write full story** also starts the first draft with the
-     selected ideation model.
-   - Multiple stories can be generated and produced from the same genre. The
-     library is saved in `studio/.story_ideas.json` (gitignored), and idea status
-     changes to *Project created* after selection.
-   - Claude Haiku 5.5 is the default ideation model. It is also copied into the
-     project's Story settings, so the full draft uses the same model unless you
-     change it.
+0. **Series room** — produce one continuing series instead of juggling genres:
+   - **Series Bible:** title, Hindi title, tagline, premise, world, tone, pillars,
+     visual style, narrator, intro/outro, continuity rules and an editable
+     *story so far* memory.
+   - **Cast Bible:** recurring characters with age, role, pillar, appearance,
+     wardrobe, signature prop, voice reference, speaking style and relationships.
+     The seeded **Simplify Life** cast is Rajiv, Meera, Aarav, Nani and Verma ji.
+   - **Episode Board:** pick a pillar (Finance, Relationships, Education, Food,
+     Shelter) or Auto, set length, and **Generate 3 episodes**. Claude Haiku 5.5
+     receives the bible, full cast, story so far and previous produced episodes,
+     and returns three continuity-aware episode blueprints.
+   - **Use episode** creates a project with the blueprint, series style, lead
+     character prompt, narrator voice, channel branding and episode number.
+     **Use & write full story** also starts the Hindi draft.
+   - Produced episodes are numbered and marked *Episode created*; unused pitches
+     stay in the board. The library is saved in `studio/.series.json` (gitignored).
+   - **Phase 1 limits:** the episode uses one narrator voice and the lead's
+     appearance prompt. Per-character dialogue voices and FaceID/IPAdapter face
+     locks are Phase 2; the cast already stores the voice and face references for it.
+   - The earlier genre/idea lab is still available at `#ideas` for future spin-offs.
 1. **Story** — pick a local Ollama model or an OpenAI-compatible provider, enter
    a premise, and optionally add story instructions (tone, genre, ending, themes
    to include or avoid). The prompt uses your topic and instructions plus only

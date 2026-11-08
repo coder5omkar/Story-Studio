@@ -2,7 +2,13 @@ const S = {
   projects: [],
   pid: null,
   data: null,
-  page: "ideas",
+  page: "series",
+  series: null,
+  seriesBusy: false,
+  seriesBusyMsg: "",
+  seriesSettingsReady: false,
+  seriesBibleReady: false,
+  castDirty: false,
   ideas: null,
   selectedGenre: null,
   ideaBusy: false,
@@ -302,13 +308,15 @@ async function boot() {
   bind();
   renderStyleGallery();
   const hashPage = location.hash.replace(/^#/, "");
-  if (["ideas", "story", "scenes", "samples", "production", "final", "publish", "settings"].includes(hashPage)) {
+  if (["series", "ideas", "story", "scenes", "samples", "production", "final", "publish", "settings"].includes(hashPage)) {
     S.page = hashPage;
   }
   await loadHealth();
+  await loadSeries();
   await loadIdeas();
   await loadProjects();
   await loadIdeaModels();
+  await loadSeriesModels();
   showPage(S.page);
   setInterval(loadHealth, 15000);
 }
@@ -408,6 +416,7 @@ function renderEmpty() {
 function renderAll() {
   if (!S.data) {
     renderEmpty();
+    renderSeries();
     renderIdeas();
     showPage(S.page);
     return;
@@ -420,6 +429,7 @@ function renderAll() {
   renderProduction();
   renderFinal();
   renderPublish();
+  renderSeries();
   renderIdeas();
   renderSettings();
   showPage(S.page);
@@ -428,9 +438,15 @@ function renderAll() {
 function renderTop() {
   const p = S.data.project;
   const st = S.data.state;
+  const seriesTitle = st.settings?.series_title || "";
+  const episodeNumber = st.settings?.episode_number || "";
+  const seriesLine = seriesTitle
+    ? `${esc(seriesTitle)}${episodeNumber ? ` · EP ${esc(String(episodeNumber))}` : ""}<br>`
+    : "";
   $("projectTitle").textContent = p.title || p.id;
   $("projectMeta").innerHTML =
     `<span class="mono">${esc(p.id)}</span> · ${esc(st.created_at || "")}<br>` +
+    seriesLine +
     `${S.data.scenes.length} scenes · ${S.data.scene_status.filter((s) => s.image).length} images · ` +
     `${S.data.scene_status.filter((s) => s.audio).length} voice clips`;
 }
@@ -480,6 +496,360 @@ function showPage(page) {
   $$(".page").forEach((el) => el.classList.toggle("active", el.id === `page-${page}`));
   $$(".stage-link").forEach((el) => el.classList.toggle("active", el.dataset.page === page));
   if (location.hash !== `#${page}`) history.replaceState(null, "", `#${page}`);
+}
+
+// ---------------------------------------------------------------------------
+// Series room
+// ---------------------------------------------------------------------------
+
+async function loadSeries() {
+  try {
+    S.series = await api("/api/series");
+  } catch (e) {
+    console.warn(e);
+    if (!S.series) S.series = null;
+  }
+  S.seriesBibleReady = false;
+  S.castDirty = false;
+  renderSeries();
+}
+
+function initSeriesSettings() {
+  if (S.seriesSettingsReady || !S.series) return;
+  const settings = S.series.settings || {};
+  if (settings.provider) $("seriesProvider").value = settings.provider;
+  if (!$("seriesProvider").value) $("seriesProvider").value = "opencode-go";
+  if (settings.model) $("seriesModel").value = settings.model;
+  S.seriesSettingsReady = true;
+}
+
+function seriesLlmPayload() {
+  const provider = $("seriesProvider").value;
+  return {
+    provider,
+    model: $("seriesModel").value.trim(),
+    api_base: providerBase(provider),
+    temperature: 0.9,
+  };
+}
+
+function seriesModelReady() {
+  if (!$("seriesModel").value.trim()) {
+    toast("Choose a series model first", "error");
+    return false;
+  }
+  const provider = $("seriesProvider").value;
+  if (provider !== "ollama" && S.health && S.health.secrets === false) {
+    toast("No API key saved. Add your OpenCode key in Settings.", "error");
+    return false;
+  }
+  return true;
+}
+
+function setSeriesBusy(message) {
+  S.seriesBusy = !!message;
+  S.seriesBusyMsg = message || "";
+  renderSeries();
+}
+
+function fillSeriesBible() {
+  if (!S.series) return;
+  const bible = S.series.series || {};
+  const fields = {
+    seriesTitle: "title",
+    seriesTitleHi: "title_hi",
+    seriesTagline: "tagline",
+    seriesPremise: "premise",
+    seriesWorld: "world",
+    seriesTone: "tone",
+    seriesVisualStyle: "visual_style",
+    seriesNarrator: "narrator",
+    seriesNarratorVoice: "narrator_voice_reference",
+    seriesIntro: "intro",
+    seriesOutro: "outro",
+    seriesContinuity: "continuity_rules",
+    seriesStorySoFar: "story_so_far",
+  };
+  for (const [id, key] of Object.entries(fields)) {
+    const el = $(id);
+    if (el && document.activeElement !== el) el.value = bible[key] || "";
+  }
+  $("seriesPillars").value = (bible.pillars || []).join(", ");
+  S.seriesBibleReady = true;
+}
+
+function collectCast() {
+  return $$("#castGrid .cast-card").map((card) => {
+    const get = (field) => card.querySelector(`[data-cast="${field}"]`)?.value ?? "";
+    return {
+      id: card.dataset.castId,
+      name: get("name").trim(),
+      name_hi: get("name_hi").trim(),
+      age: Number(get("age") || 0),
+      role: get("role").trim(),
+      pillar: get("pillar").trim(),
+      appearance: get("appearance").trim(),
+      wardrobe: get("wardrobe").trim(),
+      signature_prop: get("signature_prop").trim(),
+      voice_reference: get("voice_reference").trim(),
+      speaking_style: get("speaking_style").trim(),
+      relationships: get("relationships").trim(),
+      face_reference: get("face_reference").trim(),
+    };
+  });
+}
+
+function renderCast(force = false) {
+  if (!S.series) return;
+  if (S.castDirty && !force) return;
+  const cast = S.series.cast || [];
+  $("castGrid").innerHTML = cast.map((person) => `
+    <details class="cast-card" data-cast-id="${esc(person.id)}">
+      <summary>
+        <span class="cast-name">${esc(person.name || "New character")}</span>
+        <span class="cast-meta">${esc(String(person.age || ""))} · ${esc(person.role || "")} · ${esc(person.pillar || "")}</span>
+      </summary>
+      <div class="row wrap">
+        <label>Name <input data-cast="name" type="text" value="${esc(person.name || "")}"></label>
+        <label>Hindi name <input data-cast="name_hi" type="text" value="${esc(person.name_hi || "")}"></label>
+      </div>
+      <div class="row wrap">
+        <label>Age <input data-cast="age" type="number" value="${esc(String(person.age || ""))}"></label>
+        <label>Role <input data-cast="role" type="text" value="${esc(person.role || "")}"></label>
+        <label>Pillar <input data-cast="pillar" type="text" value="${esc(person.pillar || "")}"></label>
+      </div>
+      <label>Appearance prompt <textarea data-cast="appearance" rows="3">${esc(person.appearance || "")}</textarea></label>
+      <div class="row wrap">
+        <label>Wardrobe <input data-cast="wardrobe" type="text" value="${esc(person.wardrobe || "")}"></label>
+        <label>Signature prop <input data-cast="signature_prop" type="text" value="${esc(person.signature_prop || "")}"></label>
+      </div>
+      <div class="row wrap">
+        <label>Voice reference <input data-cast="voice_reference" type="text" value="${esc(person.voice_reference || "")}" placeholder="Chatterbox reference WAV"></label>
+        <label>Face reference (Phase 2) <input data-cast="face_reference" type="text" value="${esc(person.face_reference || "")}" placeholder="ComfyUI input filename"></label>
+      </div>
+      <label>Speaking style <input data-cast="speaking_style" type="text" value="${esc(person.speaking_style || "")}"></label>
+      <label>Relationships <input data-cast="relationships" type="text" value="${esc(person.relationships || "")}"></label>
+    </details>
+  `).join("");
+}
+
+function episodeCard(episode) {
+  const isProject = !!episode.project_id;
+  const support = (episode.supporting_cast || []).join(", ");
+  return `<article class="idea-card">
+    <div class="idea-head">
+      <div>
+        <h4 class="idea-title">${isProject ? `EP ${episode.episode_number} · ` : ""}${esc(episode.title)}</h4>
+        <div class="idea-title-en">${esc(episode.title_en || "")}</div>
+      </div>
+      <div class="idea-badges">
+        <span class="review-chip">${esc(episode.pillar || "")}</span>
+        <span class="review-chip">${episode.minutes || 10} min</span>
+        <span class="idea-status ${isProject ? "project" : ""}">${isProject ? `Episode ${episode.episode_number}` : "Idea"}</span>
+      </div>
+    </div>
+    <p class="idea-logline"><b>Lead:</b> ${esc(episode.protagonist_name || "")} · ${esc(episode.logline || "")}</p>
+    ${episode.hook ? `<div class="idea-hook"><b>Hook:</b> ${esc(episode.hook)}</div>` : ""}
+    <details>
+      <summary>Read full episode blueprint</summary>
+      <div class="idea-details">
+        <h4>Full plot</h4>
+        ${ideaParagraphs(episode.premise)}
+        ${episode.ending ? `<h4>Ending / resolution</h4>${ideaParagraphs(episode.ending)}` : ""}
+        ${episode.lesson ? `<h4>Practical lesson</h4><p>${esc(episode.lesson)}</p>` : ""}
+        ${support ? `<h4>Supporting cast</h4><p>${esc(support)}</p>` : ""}
+        ${episode.continuity_impact ? `<h4>Continuity impact</h4><p>${esc(episode.continuity_impact)}</p>` : ""}
+        ${episode.next_hook ? `<h4>Next episode tease</h4><p>${esc(episode.next_hook)}</p>` : ""}
+        ${episode.why_it_works ? `<h4>Why it works</h4><p>${esc(episode.why_it_works)}</p>` : ""}
+        ${episode.thumbnail_moment ? `<h4>Thumbnail moment</h4><p>${esc(episode.thumbnail_moment)}</p>` : ""}
+      </div>
+    </details>
+    <div class="idea-actions">
+      ${isProject
+        ? `<button class="btn primary" type="button" data-open-episode="${esc(episode.project_id)}">Open project</button>`
+        : `<button class="btn primary" type="button" data-use-episode="${esc(episode.id)}" data-generate="0">Use episode</button>
+           <button class="btn" type="button" data-use-episode="${esc(episode.id)}" data-generate="1">Use &amp; write full story</button>`}
+    </div>
+  </article>`;
+}
+
+function renderSeries() {
+  if (!S.series) {
+    $("seriesHeading").textContent = "Simplify Life";
+    $("seriesSub").textContent = "Loading series…";
+    $("episodeList").innerHTML = `<div class="idea-empty">Series library is loading.</div>`;
+    return;
+  }
+  initSeriesSettings();
+  const bible = S.series.series || {};
+  const cast = S.series.cast || [];
+  const episodes = S.series.episodes || [];
+  const used = episodes.filter((episode) => episode.project_id);
+  const ideas = episodes.filter((episode) => !episode.project_id);
+  const next = S.series.next_episode_number || (used.length + 1);
+
+  $("seriesHeading").textContent = bible.title || "Simplify Life";
+  $("seriesSub").textContent = [bible.tagline, (bible.pillars || []).join(" · ")].filter(Boolean).join(" · ");
+  const badge = $("badge-series");
+  if (badge) badge.textContent = `EP ${next}`;
+  $("seriesStatus").textContent = S.seriesBusy ? (S.seriesBusyMsg || "Working…") : "";
+  $("seriesBibleStatus").textContent = "Series memory drives every episode.";
+  $("castSummary").textContent = `${cast.length} characters · ${(bible.pillars || []).length} pillars`;
+  $("episodeSummary").textContent = `${used.length} episodes · ${ideas.length} ideas · next EP ${next}`;
+  $("saveSeries").disabled = S.seriesBusy;
+  $("addCastMember").disabled = S.seriesBusy;
+  $("generateEpisodes").disabled = S.seriesBusy;
+
+  if (!S.seriesBibleReady) fillSeriesBible();
+  renderCast();
+  $("episodeList").innerHTML = episodes.length
+    ? episodes.map(episodeCard).join("")
+    : `<div class="idea-empty">
+        <b>No episodes yet.</b><br>
+        Pick a pillar (or leave it on Auto) and click <b>Generate 3 episodes</b>. Claude will use the series bible, cast and continuity memory.
+      </div>`;
+}
+
+async function loadSeriesModels() {
+  const provider = $("seriesProvider").value || "opencode-go";
+  const base = providerBase(provider);
+  try {
+    const res = await api(`/api/models?provider=${encodeURIComponent(provider)}&base_url=${encodeURIComponent(base)}`);
+    const shown = (res.models || []).length ? res.models : (res.suggestions || []);
+    $("seriesModelOptions").innerHTML = shown.map((model) => `<option value="${esc(model)}"></option>`).join("");
+    if (res.ok) {
+      const keyNote = provider !== "ollama" && S.health && S.health.secrets === false
+        ? " · no API key saved"
+        : "";
+      $("seriesModelHint").textContent = `${shown.length} models · Claude Haiku 5.5 recommended${keyNote}`;
+    } else {
+      $("seriesModelHint").textContent = `${res.error || "Could not load models"} · Claude Haiku 5.5 still works with a valid key.`;
+    }
+  } catch (e) {
+    $("seriesModelHint").textContent = e.message;
+  }
+}
+
+async function saveSeries() {
+  if (!S.series) return;
+  const title = $("seriesTitle").value.trim();
+  if (!title) return toast("Series title is required", "error");
+  const cast = collectCast();
+  if (cast.some((person) => !person.name)) return toast("Every character needs a name", "error");
+  setSeriesBusy("Saving series bible and cast…");
+  try {
+    const res = await api("/api/series", {
+      method: "PUT",
+      body: {
+        ...seriesLlmPayload(),
+        series: {
+          title,
+          title_hi: $("seriesTitleHi").value.trim(),
+          tagline: $("seriesTagline").value.trim(),
+          premise: $("seriesPremise").value.trim(),
+          world: $("seriesWorld").value.trim(),
+          tone: $("seriesTone").value.trim(),
+          pillars: $("seriesPillars").value.trim(),
+          visual_style: $("seriesVisualStyle").value.trim(),
+          narrator: $("seriesNarrator").value.trim(),
+          narrator_voice_reference: $("seriesNarratorVoice").value.trim(),
+          intro: $("seriesIntro").value.trim(),
+          outro: $("seriesOutro").value.trim(),
+          continuity_rules: $("seriesContinuity").value,
+          story_so_far: $("seriesStorySoFar").value,
+        },
+        cast,
+      },
+    });
+    S.series = res;
+    S.seriesBibleReady = false;
+    S.castDirty = false;
+    renderSeries();
+    toast("Series bible and cast saved");
+  } catch (e) {
+    toast(e.message, "error");
+  } finally {
+    setSeriesBusy("");
+  }
+}
+
+function addCastMember() {
+  if (!S.series) return;
+  S.series.cast = S.series.cast || [];
+  S.series.cast.push({
+    id: `cast-${Date.now()}`,
+    name: "New character",
+    name_hi: "",
+    age: 30,
+    role: "",
+    pillar: "Relationships",
+    appearance: "",
+    wardrobe: "",
+    signature_prop: "",
+    voice_reference: "",
+    speaking_style: "",
+    relationships: "",
+    face_reference: "",
+  });
+  S.castDirty = true;
+  renderCast(true);
+  toast("Character added. Fill the fields and save.");
+}
+
+async function generateEpisodes() {
+  if (S.seriesBusy || !seriesModelReady()) return;
+  if (S.castDirty) return toast("Save the cast first so the episode uses your changes.", "error");
+  const pillar = $("episodePillar").value;
+  const minutes = Number($("episodeMinutes").value || 10);
+  const chapters = Number($("episodeChapters").value || 5);
+  setSeriesBusy("Claude is writing 3 continuity-aware episodes…");
+  try {
+    const res = await api("/api/series/episodes/generate", {
+      method: "POST",
+      body: { ...seriesLlmPayload(), pillar, minutes, chapters },
+    });
+    S.series = res.library;
+    S.seriesBibleReady = true;
+    toast(`${res.episodes.length} episodes ready`);
+    setTimeout(() => $("episodeList").scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+  } catch (e) {
+    toast(e.message, "error");
+  } finally {
+    setSeriesBusy("");
+  }
+}
+
+async function openEpisodeProject(pid) {
+  S.pid = pid;
+  S.data = null;
+  await loadProjects();
+  showPage("story");
+}
+
+async function useEpisode(episodeId, generate) {
+  if (S.seriesBusy || !seriesModelReady()) return;
+  setSeriesBusy(generate ? "Creating the episode and writing the first draft…" : "Creating the episode project…");
+  try {
+    const res = await api(`/api/series/episodes/${episodeId}/project`, {
+      method: "POST",
+      body: { generate, ...seriesLlmPayload() },
+    });
+    S.pid = res.project_id;
+    S.data = null;
+    await loadProjects();
+    showPage("story");
+    if (res.job) startJob({ job: res.job });
+    toast(res.existing
+      ? "Opening the existing episode project"
+      : generate
+        ? `Episode project created. Writing the full draft…`
+        : "Episode project created. Review the blueprint, then generate the story.");
+    await loadSeries();
+  } catch (e) {
+    toast(e.message, "error");
+  } finally {
+    setSeriesBusy("");
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -572,11 +942,7 @@ function renderIdeas() {
     ? `${genres.length} channels · ${ideas.length} story ideas · ${ideas.filter((idea) => !idea.project_id).length} ready to pick`
     : "No genres yet.";
 
-  const badge = $("badge-ideas");
-  if (badge) badge.textContent = ideas.length ? `${ideas.length} ideas` : "lab";
-
-  $("genreGrid").innerHTML = genres.length
-    ? genres.map((genre) => {
+  $("genreGrid").innerHTML = genres.length    ? genres.map((genre) => {
         return `<button type="button" class="genre-card ${genre.id === S.selectedGenre ? "selected" : ""}" data-genre-id="${esc(genre.id)}">
           <span class="genre-card-top">
             <span class="genre-name">${esc(genre.name)}</span>
@@ -2135,9 +2501,30 @@ function bind() {
   $$(".stage-link").forEach((el) => el.addEventListener("click", () => showPage(el.dataset.page)));
   window.addEventListener("hashchange", () => {
     const page = location.hash.replace(/^#/, "");
-    if (["ideas", "story", "scenes", "samples", "production", "final", "publish", "settings"].includes(page) && page !== S.page) {
+    if (["series", "ideas", "story", "scenes", "samples", "production", "final", "publish", "settings"].includes(page) && page !== S.page) {
       showPage(page);
     }
+  });
+
+  $("saveSeries").addEventListener("click", saveSeries);
+  $("addCastMember").addEventListener("click", addCastMember);
+  $("generateEpisodes").addEventListener("click", generateEpisodes);
+  $("seriesRefreshModels").addEventListener("click", loadSeriesModels);
+  $("seriesProvider").addEventListener("change", () => {
+    if (["opencode-go", "opencode"].includes($("seriesProvider").value)) {
+      $("seriesModel").value = "claude-haiku-5-5";
+    }
+    loadSeriesModels();
+  });
+  $("castGrid").addEventListener("input", () => { S.castDirty = true; });
+  $("episodeList").addEventListener("click", (e) => {
+    const use = e.target.closest("[data-use-episode]");
+    if (use) {
+      useEpisode(use.dataset.useEpisode, use.dataset.generate === "1");
+      return;
+    }
+    const open = e.target.closest("[data-open-episode]");
+    if (open) openEpisodeProject(open.dataset.openEpisode);
   });
 
   $("suggestGenres").addEventListener("click", suggestGenres);

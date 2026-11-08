@@ -28,12 +28,13 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from studio import ideas, ops, providers, qa, store
+from studio import ideas, ops, providers, qa, series, store
 from studio.jobs import manager
 
 UI_DIR = store.UI_DIR
 PORT = int(os.environ.get("STUDIO_PORT", "4780"))
 IDEAS_LOCK = threading.Lock()
+SERIES_LOCK = threading.Lock()
 
 app = FastAPI(title="Story Studio", docs_url=None, redoc_url=None)
 
@@ -425,6 +426,144 @@ def project_from_idea(idea_id: str, payload: dict = Body(default={})) -> dict:
         return {
             "project_id": pid,
             "title": title,
+            "existing": False,
+            "job": job.to_dict(include_logs=False) if job else None,
+        }
+
+
+# ---------------------------------------------------------------------------
+# Series room
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/series")
+def get_series_library() -> dict:
+    return series.public_library(series.load_library())
+
+
+@app.put("/api/series")
+def save_series_bible(payload: dict = Body(...)) -> dict:
+    with SERIES_LOCK:
+        data = series.load_library()
+        try:
+            series.update_settings(data, payload)
+            return series.save_bible(data, payload)
+        except Exception as exc:
+            raise _fail(exc)
+
+
+@app.post("/api/series/episodes/generate")
+def generate_series_episodes(payload: dict = Body(default={})) -> dict:
+    with SERIES_LOCK:
+        data = series.load_library()
+        series.update_settings(data, payload)
+        series.save_library(data)
+        try:
+            pillar = str(payload.get("pillar", "")).strip()
+            minutes = float(payload.get("minutes", 10) or 10)
+            chapters = int(payload.get("chapters", 5) or 5)
+            return series.suggest_episodes(
+                data, pillar=pillar, minutes=minutes, chapters=chapters
+            )
+        except Exception as exc:
+            raise _fail(exc)
+
+
+@app.post("/api/series/episodes/{episode_id}/project")
+def project_from_episode(episode_id: str, payload: dict = Body(default={})) -> dict:
+    with SERIES_LOCK:
+        data = series.load_library()
+        episode = next(
+            (item for item in data.get("episodes", []) if item.get("id") == episode_id),
+            None,
+        )
+        if not episode:
+            raise HTTPException(404, "Episode not found")
+        existing_pid = str(episode.get("project_id") or "").strip()
+        if existing_pid and (store.PROJECTS_DIR / existing_pid).is_dir():
+            return {
+                "project_id": existing_pid,
+                "title": episode.get("title", ""),
+                "existing": True,
+                "job": None,
+            }
+
+        series.update_settings(data, payload)
+        series.save_library(data)
+        bible = data.get("series", {})
+        cast = data.get("cast", [])
+        number = series.next_episode_number(data)
+        blueprint, instructions = series.episode_blueprint(episode, bible, cast, number)
+        minutes = max(3, min(60, int(episode.get("minutes") or payload.get("minutes") or 10)))
+        chapters = max(1, min(20, int(episode.get("chapters") or payload.get("chapters") or 5)))
+        title = str(episode.get("title") or episode.get("title_en") or "Simplify Life").strip()
+        slug_source = str(episode.get("title_en") or title).strip()
+        try:
+            state = store.create_project(
+                title, blueprint, minutes, chapters, slug_source=slug_source
+            )
+        except Exception as exc:
+            raise _fail(exc)
+
+        pid = state["project_id"]
+        settings = state["settings"]
+        settings["story_instructions"] = instructions
+        settings["story_genre"] = str(bible.get("title", ""))
+        settings["series_id"] = str(bible.get("id", ""))
+        settings["series_title"] = str(bible.get("title", ""))
+        settings["episode_number"] = number
+        settings["episode_pillar"] = str(episode.get("pillar", ""))
+        settings["protagonist"] = str(episode.get("protagonist_name", ""))
+        lead = next(
+            (person for person in cast if person.get("id") == episode.get("protagonist_id")),
+            {},
+        )
+        if lead:
+            image = settings.setdefault("image", {})
+            if bible.get("visual_style"):
+                image["style_prefix"] = str(bible["visual_style"])
+            appearance = str(lead.get("appearance", ""))
+            age = str(lead.get("age") or "")
+            age_prefix = "" if (not age or age in appearance) else f"{age}-year-old, "
+            image["character"] = (
+                f"the protagonist is {lead.get('name', '')}, {age_prefix}{appearance}; "
+                f"wardrobe: {lead.get('wardrobe', '')}; "
+                f"signature prop: {lead.get('signature_prop', '')}; keep the same face, hair, "
+                f"outfit and age consistent across scenes"
+            )
+        if bible.get("narrator_voice_reference"):
+            settings.setdefault("tts", {})["reference"] = bible["narrator_voice_reference"]
+        publish = settings.setdefault("publish", {})
+        if bible.get("title"):
+            publish["channel_name"] = bible["title"]
+        if bible.get("tagline"):
+            publish["channel_tagline"] = bible["tagline"]
+        publish["hashtags"] = "#SimplifyLife #HindiKahani #LifeLessons"
+        if bible.get("outro"):
+            publish["cta"] = bible["outro"]
+        idea_settings = data.get("settings", {})
+        llm = settings.setdefault("llm", {})
+        for key in ("provider", "model", "api_base", "temperature"):
+            if idea_settings.get(key) not in (None, ""):
+                llm[key] = idea_settings[key]
+        store.write_project_config(pid, state)
+        store.save_state(pid, state)
+        series.mark_episode_project(episode_id, pid, number)
+
+        job = None
+        if bool(payload.get("generate")):
+            try:
+                job = manager.start(pid, "story", lambda worker: ops.generate_story(
+                    pid, state, worker,
+                    topic=blueprint, minutes=minutes, chapters=chapters,
+                    instructions=instructions,
+                ))
+            except Exception as exc:
+                raise _fail(exc)
+        return {
+            "project_id": pid,
+            "title": title,
+            "episode_number": number,
             "existing": False,
             "job": job.to_dict(include_logs=False) if job else None,
         }

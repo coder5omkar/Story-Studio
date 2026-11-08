@@ -21,5 +21,6 @@ projects/
 # Secrets
 studio/.secrets.json
 studio/.story_ideas.json
+studio/.series.json
 .env
 .env.*

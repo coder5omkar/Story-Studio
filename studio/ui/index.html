@@ -33,9 +33,9 @@
     </div>
 
     <nav id="stageNav" class="stage-nav">
-      <button data-page="ideas" class="stage-link ideas-link">
-        <span class="stage-num">✦</span><span class="stage-name">Story table</span>
-        <span class="stage-badge" id="badge-ideas">lab</span>
+      <button data-page="series" class="stage-link ideas-link">
+        <span class="stage-num">✦</span><span class="stage-name">Series</span>
+        <span class="stage-badge" id="badge-series">Simplify Life</span>
       </button>
       <div class="rail-divider"></div>
       <button data-page="story" class="stage-link">
@@ -75,6 +75,91 @@
   </aside>
 
   <main class="main">
+
+    <!-- SERIES ROOM -->
+    <section id="page-series" class="page">
+      <div class="page-head">
+        <div><div class="eyebrow">SERIES ROOM</div><h2 id="seriesHeading">Simplify Life</h2><p class="sub" id="seriesSub">One world, one cast, one continuing story.</p></div>
+        <div class="page-actions"><button id="saveSeries" class="btn primary" type="button">Save series &amp; cast</button></div>
+      </div>
+
+      <div class="card slim">
+        <div class="row wrap align-end series-model-row">
+          <label>Story model provider
+            <select id="seriesProvider">
+              <option value="opencode-go">OpenCode Go</option>
+              <option value="opencode">OpenCode Console</option>
+              <option value="ollama">Local Ollama</option>
+            </select>
+          </label>
+          <label>Model
+            <div class="input-row">
+              <input id="seriesModel" list="seriesModelOptions" value="claude-haiku-5-5" placeholder="claude-haiku-5-5">
+              <button id="seriesRefreshModels" class="btn ghost small" type="button" title="Refresh models">↻</button>
+            </div>
+            <datalist id="seriesModelOptions"></datalist>
+            <span id="seriesModelHint" class="hint">Claude Haiku 5.5 is recommended for episode writing.</span>
+          </label>
+          <span id="seriesStatus" class="status"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Series Bible</h3><span id="seriesBibleStatus" class="hint"></span></div>
+        <div class="row wrap">
+          <label>Title <input id="seriesTitle" type="text" placeholder="Simplify Life"></label>
+          <label>Hindi title <input id="seriesTitleHi" type="text" placeholder="सिंपलीफाई लाइफ"></label>
+        </div>
+        <label>Tagline <input id="seriesTagline" type="text" placeholder="छोटी कहानी, आसान ज़िंदगी"></label>
+        <label>Premise <textarea id="seriesPremise" rows="3"></textarea></label>
+        <label>World <textarea id="seriesWorld" rows="3"></textarea></label>
+        <div class="row wrap">
+          <label>Tone <input id="seriesTone" type="text"></label>
+          <label>Pillars <input id="seriesPillars" type="text" placeholder="Finance, Relationships, Education, Food, Shelter"></label>
+        </div>
+        <label>Visual style <textarea id="seriesVisualStyle" rows="2"></textarea></label>
+        <div class="row wrap">
+          <label>Narrator <input id="seriesNarrator" type="text"></label>
+          <label>Narrator voice reference <input id="seriesNarratorVoice" type="text" placeholder="Chatterbox reference WAV path"></label>
+        </div>
+        <div class="row wrap">
+          <label>Intro line <input id="seriesIntro" type="text"></label>
+          <label>Outro / CTA <input id="seriesOutro" type="text"></label>
+        </div>
+        <label>Continuity rules <textarea id="seriesContinuity" rows="4"></textarea></label>
+        <label>Story so far (continuity memory) <textarea id="seriesStorySoFar" rows="4" placeholder="What has already happened in the series?"></textarea></label>
+        <p class="hint">The episode generator reads the bible, cast, continuity rules and story so far before writing.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Recurring cast</h3><span id="castSummary" class="hint"></span></div>
+        <div id="castGrid" class="cast-grid"></div>
+        <button id="addCastMember" class="btn ghost small" type="button">+ Add character</button>
+        <p class="hint">Voice references are used by Chatterbox. Face references are stored for Phase 2; current episodes use the appearance prompt, wardrobe and signature prop.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div><h3>Episode board</h3><span id="episodeSummary" class="hint"></span></div>
+          <div class="row wrap idea-controls">
+            <label>Pillar
+              <select id="episodePillar">
+                <option value="">Auto / rotate</option>
+                <option value="Finance">Finance</option>
+                <option value="Relationships">Relationships</option>
+                <option value="Education">Education</option>
+                <option value="Food">Food</option>
+                <option value="Shelter">Shelter</option>
+              </select>
+            </label>
+            <label>Minutes <input id="episodeMinutes" type="number" min="3" max="60" value="10"></label>
+            <label>Chapters <input id="episodeChapters" type="number" min="1" max="20" value="5"></label>
+            <button id="generateEpisodes" class="btn primary" type="button">Generate 3 episodes</button>
+          </div>
+        </div>
+        <div id="episodeList" class="episode-list"></div>
+      </div>
+    </section>
 
     <!-- STORY TABLE -->
     <section id="page-ideas" class="page">
