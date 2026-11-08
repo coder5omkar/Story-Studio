@@ -18,12 +18,39 @@ PROJECT = Path(CONFIG["project_dir"])
 
 def build_prompt(scene: dict) -> str:
     image_cfg = CONFIG["image"]
+    scene_prompt = str(scene.get("image_prompt", ""))
+    protagonist = str(image_cfg.get("protagonist_name") or "").strip()
+    guard = ""
+    if protagonist:
+        guard = (
+            f" Only one {protagonist} appears in this scene. Never draw him twice, "
+            f"never create a duplicate, twin, clone or a second person with his face."
+        )
+    cast = image_cfg.get("cast") or {}
+    mentioned: list[str] = []
+    seen: set[str] = set()
+    low = scene_prompt.lower()
+    if isinstance(cast, dict):
+        for name, description in cast.items():
+            description = str(description or "").strip()
+            if not description or description in seen:
+                continue
+            if str(name).lower() in low:
+                mentioned.append(f"{name}: {description}")
+                seen.add(description)
+    cast_text = ""
+    if mentioned:
+        cast_text = (
+            " Supporting character references (each is a distinct person, not the protagonist): "
+            + "; ".join(mentioned)
+            + ". Do not use the protagonist's face for another character."
+        )
     return (
         f"{image_cfg['style_prefix']}, "
         f"character: {image_cfg['character']}, "
-        f"scene: {scene['image_prompt']}, "
+        f"scene: {scene_prompt}, "
         f"{scene['mood']} mood, {scene['camera']} camera move. "
-        f"Follow the visual style and character description exactly. "
+        f"Follow the visual style and character description exactly.{cast_text}{guard} "
         f"No text, no watermark."
     )
 

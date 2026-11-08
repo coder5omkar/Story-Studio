@@ -39,6 +39,9 @@ final video.
 - **Series room** for one continuing show: editable Series Bible, recurring Cast
   Bible with voice/appearance profiles, continuity memory, and an Episode Board
   that generates three continuity-aware episodes per pillar.
+- **Consistent cast framing**: series projects carry the protagonist, supporting
+  cast and a duplicate-safe negative prompt into every image; scene prompts use
+  one visible face per shot to prevent repeated protagonists.
 - **Publish kit** with five Hindi titles, a copy-paste YouTube description, tags
   and a 1280×720 thumbnail rendered in the project's visual style.
 - **Local-first security**: binds to `127.0.0.1`; API keys are stored locally in

@@ -120,6 +120,22 @@ the job **cancelled**, and leaves production **stale** rather than failed so it
 can be resumed. The **Approve plan** button in Production saves the current scene
 edit first, then approves; an approved plan shows **Plan approved ✓**.
 
+### Character consistency
+
+Series projects carry a **protagonist name**, the **supporting cast descriptions**
+and a style-appropriate **negative prompt** into every image prompt. The image
+builder also adds a hard guard: only one protagonist appears, and other named
+characters are described as distinct people. The scene planner follows a
+**one visible face per image** rule: conversations show the lead in focus and the
+second character from behind, over the shoulder, as hands/silhouette, or out of
+frame. This prevents the model from painting the same protagonist twice.
+
+Z-Image is fast and good for single-character watercolor shots, but it is weak at
+two-shots; use one-face framing for it. If a scene truly needs two visible faces,
+switch that scene/project to SDXL, which follows multi-character prompts more
+reliably but may drop one character. The duplicate-person negative terms are
+included in the series negative prompt.
+
 ### Visual styles
 
 Choose a preset under **Settings → Visuals → Style preset**. Each preset sets a

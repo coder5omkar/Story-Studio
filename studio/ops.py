@@ -575,16 +575,25 @@ def generate_scenes(pid: str, state: dict, job: Job, *, target_words: int = 24, 
     image_cfg = state.get("settings", {}).get("image", {})
     style_prefix = str(image_cfg.get("style_prefix", "")).strip()
     character = str(image_cfg.get("character", "")).strip()
+    cast = image_cfg.get("cast") or {}
+    cast_lines = "\n".join(
+        f"- {name}: {description}" for name, description in cast.items()
+        if name and description
+    )
 
     system = (
         "You are a storyboard artist for a Hindi story channel. "
         f"Visual style: {style_prefix}. "
         f"Character: {character}. "
+        f"Recurring cast:\n{cast_lines}\n"
         "For each Hindi narration chunk, write one concrete English image prompt of 25-45 words. "
         "Describe setting, action, emotion, camera framing and background. "
         "Follow the visual style and character description exactly; never contradict them. "
         "If the character is described as a simplified or non-realistic figure, do not add age, "
         "hair, beard, facial features or realistic clothing. "
+        "COMPOSITION RULE: one visible face per image. If the narration includes two characters, "
+        "show the lead in focus and the second character only from behind, over the shoulder, "
+        "as a silhouette, hands, or out of frame. Never ask for two faces in one prompt. "
         "English only: never use Devanagari or Hindi words in image_prompt. "
         "No text in the image. Return only a JSON array."
     )
@@ -598,8 +607,12 @@ For each narration chunk below, create one scene entry.
 
 Visual style: {style_prefix}
 Character: {character}
+Recurring cast:
+{cast_lines}
 
 Follow that visual style and character consistently.
+Use only one visible face per image. The other character, if any, is seen from behind,
+over the shoulder, as hands/silhouette, or out of frame.
 
 Return a JSON array with exactly {len(batch)} objects:
 [
@@ -736,6 +749,11 @@ def restyle_scene_prompts(pid: str, state: dict, job: Job) -> dict:
     image_cfg = state.get("settings", {}).get("image", {})
     style_prefix = str(image_cfg.get("style_prefix", "")).strip()
     character = str(image_cfg.get("character", "")).strip()
+    cast = image_cfg.get("cast") or {}
+    cast_lines = "\n".join(
+        f"- {name}: {description}" for name, description in cast.items()
+        if name and description
+    )
     job.set_progress(5, "Rewriting prompts for the current visual style")
     lines = []
     for i, scene in enumerate(scenes, 1):
@@ -748,6 +766,8 @@ Rewrite each scene as one English image prompt of 25-45 words for this visual st
 
 Visual style: {style_prefix}
 Character: {character}
+Recurring cast:
+{cast_lines}
 
 Rules:
 - Keep the setting, action and emotion from the narration.
@@ -755,6 +775,9 @@ Rules:
 - Remove details that conflict with the style or character.
 - If the character is described as a simplified or non-realistic figure, do not add age, hair,
   beard, facial features or realistic clothing.
+- COMPOSITION RULE: one visible face per image. If the narration includes two characters,
+  show the lead in focus and the second character only from behind, over the shoulder,
+  as hands/silhouette, or out of frame. Never ask for two faces in one prompt.
 - Describe the background and camera framing. No text in the image.
 
 Return a JSON array of exactly {len(scenes)} strings, in scene order.

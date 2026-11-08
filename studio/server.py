@@ -522,6 +522,10 @@ def project_from_episode(episode_id: str, payload: dict = Body(default={})) -> d
             image = settings.setdefault("image", {})
             if bible.get("visual_style"):
                 image["style_prefix"] = str(bible["visual_style"])
+            if bible.get("negative_prompt"):
+                image["negative_prompt"] = str(bible["negative_prompt"])
+            image["protagonist_name"] = str(lead.get("name", ""))
+            image["cast"] = series.cast_reference_map(cast, str(lead.get("id", "")))
             appearance = str(lead.get("appearance", ""))
             age = str(lead.get("age") or "")
             age_prefix = "" if (not age or age in appearance) else f"{age}-year-old, "

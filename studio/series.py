@@ -29,8 +29,8 @@ PILLARS = ["Finance", "Relationships", "Education", "Food", "Shelter"]
 
 SERIES_FIELDS = (
     "title", "title_hi", "tagline", "premise", "world", "tone", "pillars",
-    "visual_style", "narrator", "narrator_voice_reference", "intro", "outro",
-    "continuity_rules", "story_so_far",
+    "visual_style", "negative_prompt", "narrator", "narrator_voice_reference",
+    "intro", "outro", "continuity_rules", "story_so_far",
 )
 
 CAST_FIELDS = (
@@ -61,6 +61,11 @@ DEFAULT_SERIES = {
         "warm Indian watercolor storybook illustration, delicate ink lines, visible paper texture, "
         "warm muted washes, gentle natural light, consistent character designs, Indian middle-class "
         "homes and neighbourhoods, no text, no watermark"
+    ),
+    "negative_prompt": (
+        "photorealistic, 3D render, low quality, blurry, text, watermark, logo, signature, "
+        "deformed, extra fingers, bad anatomy, duplicate person, twins, clone, repeated character, "
+        "two men with the same face, extra people"
     ),
     "narrator": (
         "A calm, observant Hindi narrator who speaks like a thoughtful friend, never like a lecturer."
@@ -423,6 +428,32 @@ def cast_context(cast: list[dict]) -> str:
             f"Signature prop: {person.get('signature_prop')}. Speaking style: {person.get('speaking_style')}."
         )
     return "\n".join(lines) or "- (no cast yet)"
+
+
+def cast_reference_map(cast: list[dict], exclude_id: str = "") -> dict[str, str]:
+    """Map names/aliases to distinct appearance descriptions for image prompts."""
+    out: dict[str, str] = {}
+    for person in cast:
+        if exclude_id and person.get("id") == exclude_id:
+            continue
+        description = (
+            f"{person.get('appearance', '')}; wardrobe: {person.get('wardrobe', '')}; "
+            f"signature prop: {person.get('signature_prop', '')}"
+        ).strip("; ")
+        if not description:
+            continue
+        name = _clean(person.get("name"))
+        if not name:
+            continue
+        keys = {name, name.split()[0]}
+        if "Nani" in name:
+            keys.add("Nani")
+        if "Verma" in name:
+            keys.add("Verma")
+        for key in keys:
+            if key:
+                out[key] = description
+    return out
 
 
 def _previous_context(episodes: list[dict]) -> str:
