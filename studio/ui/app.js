@@ -1188,6 +1188,8 @@ function renderStory() {
   }
   $("storyWords").textContent = `${text.trim() ? text.trim().split(/\s+/).length : 0} words`;
   renderChecks("storyChecks", S.data.story_validation, "storyScore");
+  const povMode = !!S.data.state.settings?.publish?.pov;
+  $("adaptCard").style.display = povMode ? "" : "none";
 
   if (document.activeElement !== $("storyModel")) $("storyModel").value = S.data.state.settings.llm.model || "";
   if (!S.topicDirty && document.activeElement !== $("storyTopic")) {
