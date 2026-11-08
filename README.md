@@ -322,7 +322,7 @@ or `OPENAI_API_KEY`.
 ## POV Finance India (adapt an existing story)
 
 The POV Finance template turns an English/US POV finance story into an Indian
-Hindi episode: flat-vector comic art, one recurring protagonist, chaptered
+Hindi episode: clean 2D vector cartoon art, one recurring protagonist, chaptered
 second-person narration and a calm male Hindi voice.
 
 **Samples** (generated with the template):

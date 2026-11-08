@@ -1,25 +1,27 @@
-"""POV Finance format: Indian flat-vector comic, recurring protagonist, source-story adaptation."""
+"""POV Finance format: clean Indian 2D vector cartoon, recurring protagonist, source-story adaptation."""
 
 from __future__ import annotations
 
 from . import store
 
 POV_STYLE_PREFIX = (
-    "clean flat vector comic illustration, bold black outlines, muted warm palette, "
-    "Indian middle-class homes, offices and banks, simple expressive backgrounds, "
-    "cinematic 16:9 composition, natural light, no text, no watermark"
+    "clean 2D vector cartoon still, flat cel shading, thin dark outlines, bright warm pastel palette, "
+    "simple friendly faces, minimal detail, 2D explainer animation style, Indian middle-class homes, "
+    "offices and banks, cinematic 16:9 composition, natural light, no text, no watermark"
 )
 
 POV_CHARACTER = (
     "the protagonist is Aman, a 32-year-old Indian man with short black hair, a short neatly trimmed "
-    "beard, warm brown skin, wearing a dark green polo shirt, dark jeans and a simple watch; keep the "
-    "same face, hair, beard, green shirt and age consistent in every scene"
+    "beard, warm brown skin, simple friendly cartoon facial features, wearing a dark green polo shirt, "
+    "dark jeans and a simple watch; keep the same face, hair, beard, green shirt and age consistent "
+    "in every scene"
 )
 
 POV_NEGATIVE = (
-    "photorealistic, 3D render, low quality, blurry, text, watermark, logo, signature, "
-    "deformed, extra fingers, bad anatomy, duplicate person, twins, clone, repeated character, "
-    "two men with the same face, extra people"
+    "photorealistic, 3D render, heavy shading, gritty texture, detailed skin, complex background, "
+    "heavy black outlines, low quality, blurry, text, watermark, logo, signature, deformed, extra "
+    "fingers, bad anatomy, duplicate person, twins, clone, repeated character, two men with the same "
+    "face, extra people"
 )
 
 POV_PUBLISH = {
