@@ -18,6 +18,9 @@ projects/
 .backlot/
 *.log
 
+# Local reference media
+example video.mp4
+
 # Secrets
 studio/.secrets.json
 studio/.story_ideas.json

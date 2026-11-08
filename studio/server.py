@@ -28,7 +28,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from studio import ideas, ops, providers, qa, series, store
+from studio import ideas, ops, pov, providers, qa, series, store
 from studio.jobs import manager
 
 UI_DIR = store.UI_DIR
@@ -271,6 +271,12 @@ def create_project(payload: dict = Body(...)) -> dict:
         state = store.create_project(title, topic, minutes, chapters)
     except Exception as exc:
         raise _fail(exc)
+    template = str(payload.get("template", "")).strip()
+    if template == "pov_finance":
+        pov.apply_template(state)
+        store.write_project_config(state["project_id"], state)
+        store.add_history(state, "project_template", "POV Finance")
+        store.save_state(state["project_id"], state)
     return {"id": state["project_id"], "state": store.public_state(state)}
 
 
@@ -597,6 +603,29 @@ def generate_story(pid: str, payload: dict = Body(...)) -> dict:
     return _start(pid, "story", lambda job: ops.generate_story(
         pid, state, job, topic=topic, minutes=minutes, chapters=chapters,
         instructions=instructions,
+    ))
+
+
+@app.post("/api/projects/{pid}/story/adapt")
+def adapt_story(pid: str, payload: dict = Body(...)) -> dict:
+    state = _project(pid)
+    source = str(payload.get("source", "")).strip()
+    if not source:
+        raise HTTPException(400, "Paste a source story or transcript first")
+    if len(source) < 200:
+        raise HTTPException(400, "The source story is too short to adapt")
+    minutes = float(payload.get("minutes", 25) or 25)
+    chapters = int(payload.get("chapters", 8) or 8)
+    _apply_llm_payload(state, payload)
+    state["settings"]["story_topic"] = "POV Finance adaptation"
+    state["settings"]["story_minutes"] = minutes
+    state["settings"]["story_chapters"] = chapters
+    state["settings"]["story_instructions"] = pov.POV_ADAPT_INSTRUCTIONS
+    store.write_project_config(pid, state)
+    store.save_state(pid, state)
+    return _start(pid, "story_adapt", lambda job: ops.adapt_story(
+        pid, state, job,
+        source=source, minutes=minutes, chapters=chapters,
     ))
 
 

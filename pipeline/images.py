@@ -99,6 +99,9 @@ def zimage_workflow(scene: dict, seed: int | None = None) -> dict:
 def ipadapter_workflow(scene: dict, seed: int | None = None) -> dict:
     image_cfg = CONFIG["image"]
     workflow = load_workflow(ROOT / "workflows" / "sdxl_ipadapter_api.json")
+    reference = str(image_cfg.get("reference_image") or "").strip()
+    if reference:
+        patch(workflow, "3", {"image": reference})
     patch(workflow, "5", {"text": build_prompt(scene)})
     if "negative_prompt" in image_cfg:
         patch(workflow, "6", {"text": str(image_cfg.get("negative_prompt") or "")})
@@ -121,6 +124,9 @@ def ipadapter_workflow(scene: dict, seed: int | None = None) -> dict:
 def faceid_workflow(scene: dict, seed: int | None = None) -> dict:
     image_cfg = CONFIG["image"]
     workflow = load_workflow(ROOT / "workflows" / "sdxl_faceid_api.json")
+    reference = str(image_cfg.get("reference_image") or "").strip()
+    if reference:
+        patch(workflow, "3", {"image": reference})
     patch(workflow, "5", {"text": build_prompt(scene)})
     fixed = (
         "close-up, headshot, face only, cropped body, out of frame, "

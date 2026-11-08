@@ -12,7 +12,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from . import providers, qa, store
+from . import pov, providers, qa, store
 from .jobs import Job, JobCancelled
 from . import thumbnail
 
@@ -287,6 +287,75 @@ def generate_story(
     store.save_state(pid, state)
     job.set_progress(100, "Story ready for review")
     return {"words": state["stages"]["story"]["words"], "validation": validation}
+
+
+def adapt_story(
+    pid: str,
+    state: dict,
+    job: Job,
+    *,
+    source: str,
+    minutes: float,
+    chapters: int,
+) -> dict:
+    """Convert an English/US POV finance story into an Indian Hindi POV episode."""
+    source = source.strip()
+    if len(source) < 200:
+        raise RuntimeError("Source story is too short to adapt")
+    chapters = max(1, int(chapters or 8))
+    minutes = max(3, min(120, float(minutes or 25)))
+    target = max(400, int(minutes * 130))
+    paths = store.ensure_dirs(pid)
+    (paths["studio"] / "source_story.md").write_text(source, encoding="utf-8")
+    job.log(f"Source story stored ({len(source)} chars)")
+    job.set_progress(2, "Adapting source to Indian POV")
+    prompt = f"""
+You are adapting a popular English/US POV finance story for an Indian Hindi YouTube channel.
+Do not copy the source sentences. Rewrite it as an original Indian POV episode with the same
+emotional arc, chapter structure and central lesson.
+
+Source story/transcript:
+{source[:22000]}
+
+Target: about {minutes} minutes of Hindi narration (~{target} words), {chapters} chapters.
+
+Return a detailed adaptation blueprint in Hindi, not the full story:
+- A new Indian title and a 15-second opening hook.
+- A believable Indian protagonist ("आप") with an Indian city, job, salary, family and home.
+- Replace every US detail with an Indian equivalent:
+  401k / TSP -> EPF / NPS; Roth IRA -> equity mutual fund / SIP; mortgage -> home loan / EMI;
+  dollar amounts -> rupee amounts recalculated for Indian salaries and costs;
+  US jobs -> Indian jobs; Labor Day / cabin / Wisconsin -> Indian holiday / family hometown / hill station.
+- Keep the chapter arc and emotional beats, but make all numbers, places, jobs and family details Indian.
+- Give {chapters} chapter headings (अध्याय 1..{chapters}) with 3-5 concrete beats each, exact rupee
+  figures, salary, expenses, EMI/SIP, and the key emotional turn.
+- End with a resolved ending and one practical money lesson shown through the protagonist's decision.
+- No US terms, no real people or brands, no politics, no lectures.
+Return only the blueprint.
+""".strip()
+    blueprint = providers.chat(
+        state["settings"],
+        [
+            {"role": "system", "content": "You are a senior Indian POV finance story editor. Return only the adaptation blueprint."},
+            {"role": "user", "content": prompt},
+        ],
+        num_predict=min(8192, max(3000, chapters * 520)),
+    )
+    job.check_cancelled()
+    blueprint = blueprint.strip()
+    if not blueprint:
+        raise RuntimeError("The model returned an empty adaptation blueprint")
+    job.set_progress(10, "Writing adapted Hindi story")
+    result = generate_story(
+        pid,
+        state,
+        job,
+        topic=blueprint,
+        minutes=minutes,
+        chapters=chapters,
+        instructions=pov.POV_ADAPT_INSTRUCTIONS,
+    )
+    return {"adapted": True, **result}
 
 
 def save_story(pid: str, state: dict, text: str) -> dict:
@@ -1257,6 +1326,17 @@ def generate_publish_kit(pid: str, state: dict, job: Job) -> dict:
     episode_number = state.get("settings", {}).get("episode_number", "")
     episode_pillar = str(state.get("settings", {}).get("episode_pillar", "")).strip()
     protagonist = str(state.get("settings", {}).get("protagonist", "")).strip()
+    pov_mode = bool(pub.get("pov"))
+    pov_title_rule = (
+        " If POV Finance mode is on, make the best title start with \"POV:\" and write the description "
+        "in second-person \"आप\" voice."
+        if pov_mode else ""
+    )
+    pov_thumb_rule = (
+        " POV Finance thumbnail: put the Indian protagonist on the right in a dark green polo shirt, "
+        "clear face and one financial object; leave a large clean empty area on the left for a big Hindi title; no text."
+        if pov_mode else ""
+    )
     job.set_progress(10, "Writing titles and description")
     prompt = f"""
 Channel name: {pub.get('channel_name', '')}
@@ -1267,6 +1347,7 @@ Default hashtags: {pub.get('hashtags', '')}
 Series: {series_title}
 Episode number: {episode_number}
 Episode pillar: {episode_pillar}
+POV Finance mode: {pov_mode}
 Protagonist: {protagonist}
 
 Story:
@@ -1275,12 +1356,12 @@ Story:
 Create a YouTube publish kit for this story.
 
 Requirements:
-- titles: 5 catchy Hindi titles, each 35-70 characters. Honest curiosity, no fake claims, no ending spoilers. Include search-friendly words such as "Hindi Kahani" or "Emotional Story" where natural. If a series title and episode number are provided, make the best title include the series name and "EP {episode_number}" naturally, e.g. "Simplify Life | EP 3: ...".
+- titles: 5 catchy Hindi titles, each 35-70 characters. Honest curiosity, no fake claims, no ending spoilers. Include search-friendly words such as "Hindi Kahani" or "Emotional Story" where natural. If a series title and episode number are provided, make the best title include the series name and "EP {episode_number}" naturally, e.g. "Simplify Life | EP 3: ...".{pov_title_rule}
 - best_title: the single strongest title. Include the channel name and episode number if they fit naturally.
 - description: 1200-1800 characters in Hindi. Paragraph 1: hook and premise without spoiling the ending. Paragraph 2: what the viewer will feel/learn. Paragraph 3: moral, CTA, contact email and hashtags. If a series is provided, include the series name and episode number near the top and invite viewers to watch the other episodes. Include a short fictional-story disclaimer. Use \n\n between paragraphs.
 - tags: 12-18 short YouTube tags in Hindi/English, no # symbols. Include the series name and episode pillar when provided.
 - thumbnail_text: 3-5 high-impact Hindi words, maximum 28 characters, no punctuation other than a comma if needed.
-- thumbnail_prompt: one English image-generation prompt, 25-50 words, for a cinematic YouTube thumbnail. Show the protagonist's face/emotion and one key story object or moment. Strong composition, leave negative space on the left or bottom for text, no text in the image, no watermark.
+- thumbnail_prompt: one English image-generation prompt, 25-50 words, for a cinematic YouTube thumbnail. Show the protagonist's face/emotion and one key story object or moment. Strong composition, leave negative space on the left or bottom for text, no text in the image, no watermark.{pov_thumb_rule}
 
 Return only this JSON object:
 {{
@@ -1418,6 +1499,7 @@ def generate_thumbnail(pid: str, state: dict, job: Job, *, engine: str | None = 
         str(node.get("thumbnail_text") or node.get("title") or "एक कहानी"),
         str(pub.get("channel_name") or ""),
         str(pub.get("channel_tagline") or ""),
+        pov=bool(pub.get("pov")),
     )
     validation = qa.validate_image(out)
     store.set_stage(state, "publish", "ready", approved=False, notes="Thumbnail generated")

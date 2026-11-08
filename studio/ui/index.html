@@ -288,6 +288,18 @@
       </div>
 
       <div class="card">
+        <div class="card-head"><h3>Adapt an existing story to Indian POV</h3><span id="adaptStatus" class="status"></span></div>
+        <p class="hint">Paste an English/US POV finance story or transcript. The studio rewrites it in Hindi for an Indian middle-class audience — ₹ amounts, EPF/PPF/NPS, SIP, EMI, Indian jobs, family and city details — while keeping the chapter arc, emotional beats and lesson.</p>
+        <textarea id="adaptSource" rows="6" placeholder="Paste the source story / transcript here..."></textarea>
+        <div class="row wrap align-end">
+          <label>Minutes <input id="adaptMinutes" type="number" min="5" max="120" value="25"></label>
+          <label>Chapters <input id="adaptChapters" type="number" min="1" max="20" value="8"></label>
+          <button id="adaptStory" class="btn primary" type="button">Adapt to Indian POV</button>
+          <span class="hint">Uses the provider/model selected above. Write the final script in "आप" POV.</span>
+        </div>
+      </div>
+
+      <div class="card">
         <div class="card-head"><h3>Quality checks</h3><span id="storyScore" class="score"></span></div>
         <div id="storyChecks" class="check-grid"></div>
       </div>
@@ -615,6 +627,7 @@
               <option value="watercolor">Watercolor storybook</option>
               <option value="vintage-poster">Vintage Indian poster</option>
               <option value="paper-cutout">Paper cutout collage</option>
+              <option value="pov-finance">POV Finance (Indian comic)</option>
               <option value="custom">Custom</option>
             </select>
           </label>
@@ -682,6 +695,7 @@
       <label>Minutes <input id="newMinutes" type="number" min="1" max="180" value="5"></label>
       <label>Chapters <input id="newChapters" type="number" min="1" max="20" value="5"></label>
     </div>
+    <label class="check-label"><input id="newPov" type="checkbox"> POV Finance template — Indian flat-vector, fixed protagonist, Hindi narrator</label>
     <button id="createProject" class="btn primary wide">Create project</button>
   </div>
 </div>

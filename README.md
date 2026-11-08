@@ -42,6 +42,9 @@ final video.
 - **Consistent cast framing**: series projects carry the protagonist, supporting
   cast and a duplicate-safe negative prompt into every image; scene prompts use
   one visible face per shot to prevent repeated protagonists.
+- **POV Finance India template**: paste an English/US POV finance story and the
+  studio rewrites it as an Indian Hindi episode with ₹ amounts, EPF/NPS/SIP/EMI,
+  an Indian city and family, a fixed protagonist and a **YOU** thumbnail tag.
 - **Publish kit** with five Hindi titles, a copy-paste YouTube description, tags
   and a 1280×720 thumbnail rendered in the project's visual style.
 - **Local-first security**: binds to `127.0.0.1`; API keys are stored locally in
@@ -65,6 +68,7 @@ character description, negative prompt and recommended engine.
 | Watercolor storybook | Z-Image Turbo |
 | Vintage Indian poster | SDXL |
 | Paper cutout collage | Z-Image Turbo |
+| POV Finance (Indian comic) | SDXL |
 
 For an existing project:
 
@@ -314,6 +318,80 @@ or `OPENAI_API_KEY`.
    - Edit and save any field, then copy title, description and tags straight into
      YouTube Studio. Channel identity defaults live under
      **Settings → Publish / YouTube**.
+
+## POV Finance India (adapt an existing story)
+
+The POV Finance template turns an English/US POV finance story into an Indian
+Hindi episode: flat-vector comic art, one recurring protagonist, chaptered
+second-person narration and a calm male Hindi voice.
+
+**Samples** (generated with the template):
+
+- ![POV sample 1](channel/pov-samples/pov_sample_1.png)
+- ![POV sample 2](channel/pov-samples/pov_sample_2.png)
+- ![POV sample 3](channel/pov-samples/pov_sample_3.png)
+- ![POV thumbnail with YOU tag](channel/pov-samples/thumbnail_sample.png)
+- [Hindi voice sample](channel/pov-samples/voice_sample.wav)
+- [Sample adapted story](channel/pov-samples/adapted_story_sample.md)
+
+### Create a POV project
+
+1. Click **New project** and tick
+   **POV Finance template — Indian flat-vector, fixed protagonist, Hindi narrator**.
+   Minutes default to 25 and chapters to 8.
+2. On **Story**, paste the source story or transcript into
+   **Adapt an existing story to Indian POV** and click **Adapt to Indian POV**.
+3. The adapter writes an Indian blueprint first, then the regular chapter engine
+   writes the full Hindi narration. The source is kept in
+   `projects/<id>/studio/source_story.md`.
+4. Review, edit and approve the story. The remaining stages are unchanged.
+
+### What the adapter changes
+
+- **Person:** the whole story is rewritten in second person, **आप**.
+- **Money:** dollars become **₹** amounts rescaled for Indian salaries and costs;
+  401k/TSP become **EPF/NPS**, Roth IRA becomes an equity mutual fund/SIP,
+  mortgage becomes **home loan/EMI**.
+- **Life:** US jobs, holidays, cities and family details become Indian
+  middle-class equivalents (Indian city, school/office job, family, festivals).
+- **Structure:** the source chapter arc, emotional beats and central lesson are
+  preserved, but the prose is rewritten, not copied.
+- **Ending:** a resolved final chapter and one practical money lesson shown
+  through the protagonist's decision, not a lecture.
+
+### Character consistency
+
+The recurring protagonist is **Aman**, 32, short black hair, trimmed beard, dark
+green polo shirt, dark jeans and a simple watch. The POV preset carries his
+description and a duplicate-safe negative prompt into every scene.
+
+- Only **one visible face per scene**. Conversations show Aman in focus and the
+  other person from behind, over the shoulder or partly out of frame.
+- **SDXL** is the recommended scene engine. Z-Image duplicates the protagonist in
+  flat-vector multi-person scenes, so the POV preset uses SDXL.
+- **FaceID** can lock a close-up face, but it overrides scene composition; it is
+  not enabled by default.
+- Thumbnails add the red **YOU** badge and arrow. The arrow now anchors to the
+  green shirt, so it points at the protagonist instead of the background.
+
+### POV publish kit
+
+- Titles start with **POV:** and the description is written in **आप** voice.
+- The thumbnail prompt keeps the protagonist on the right in the green polo and
+  leaves clean space on the left for a large Hindi title.
+- The renderer draws the red **YOU** tag with an arrow plus the Hindi thumbnail
+  title.
+
+### Current limitations
+
+- SDXL text-only keeps the shirt, age and build consistent, but the face still
+  varies slightly between shots. This is acceptable for Phase 1; use FaceID or a
+  trained character LoRA for closer identity lock.
+- The adapter preserves the arc and lesson but does not translate sentence by
+  sentence, so exact numbers and side characters can change.
+- The reference video is a style/format reference, not a shot-by-shot template.
+- A full 25–30 minute episode needs roughly 8 chapters and 3,500–4,500 Hindi
+  words; generate and review the story before starting an expensive batch.
 
 ## Voice normalization
 

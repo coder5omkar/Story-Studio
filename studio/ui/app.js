@@ -174,6 +174,21 @@ const STYLE_PRESETS = {
       "photorealistic, 3D render, smooth gradients, low quality, blurry, text, watermark, logo, signature, " +
       "deformed, extra fingers, bad anatomy",
   },
+  "pov-finance": {
+    engine: "sdxl",
+    prefix:
+      "clean flat vector comic illustration, bold black outlines, muted warm palette, " +
+      "Indian middle-class homes, offices and banks, simple expressive backgrounds, " +
+      "cinematic 16:9 composition, natural light, no text, no watermark",
+    character:
+      "the protagonist is Aman, a 32-year-old Indian man with short black hair, a short neatly trimmed beard, " +
+      "warm brown skin, wearing a dark green polo shirt, dark jeans and a simple watch; keep the " +
+      "same face, hair, beard, green shirt and age consistent in every scene",
+    negative:
+      "photorealistic, 3D render, low quality, blurry, text, watermark, logo, signature, " +
+      "deformed, extra fingers, bad anatomy, duplicate person, twins, clone, repeated character, " +
+      "two men with the same face, extra people",
+  },
 };
 
 const $ = (id) => document.getElementById(id);
@@ -257,6 +272,7 @@ const STYLE_LABELS = {
   watercolor: "Watercolor storybook",
   "vintage-poster": "Vintage Indian poster",
   "paper-cutout": "Paper cutout collage",
+  "pov-finance": "POV Finance (Indian comic)",
 };
 
 function renderStyleGallery() {
@@ -1236,6 +1252,31 @@ async function generateStory() {
     S.topicDirty = false;
     S.instructionsDirty = false;
     toast("Story generation started");
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function adaptStory() {
+  const source = $("adaptSource").value.trim();
+  if (!source) return toast("Paste a source story first", "error");
+  if (source.length < 200) return toast("The source story is too short", "error");
+  const provider = $("llmProvider").value;
+  if (provider !== "ollama" && !$("storyModel").value.trim()) {
+    return toast("Choose a model for this provider", "error");
+  }
+  try {
+    const res = await api(`/api/projects/${S.pid}/story/adapt`, {
+      method: "POST",
+      body: {
+        source,
+        minutes: Number($("adaptMinutes").value || 25),
+        chapters: Number($("adaptChapters").value || 8),
+        provider,
+        model: $("storyModel").value.trim(),
+        api_base: providerBase(provider),
+      },
+    });
+    startJob(res);
+    toast("Adapting the source into an Indian POV story…");
   } catch (e) { toast(e.message, "error"); }
 }
 
@@ -2510,6 +2551,7 @@ async function createProject() {
         topic: $("newTopic").value.trim(),
         minutes: Number($("newMinutes").value || 5),
         chapters: Number($("newChapters").value || 5),
+        template: $("newPov").checked ? "pov_finance" : "",
       },
     });
     closeModal();
@@ -2531,6 +2573,12 @@ function bind() {
   $("newProjectBtn").addEventListener("click", openModal);
   $("closeModal").addEventListener("click", closeModal);
   $("createProject").addEventListener("click", createProject);
+  $("newPov").addEventListener("change", () => {
+    if ($("newPov").checked) {
+      $("newMinutes").value = 25;
+      $("newChapters").value = 8;
+    }
+  });
   $("modal").addEventListener("click", (e) => { if (e.target.id === "modal") closeModal(); });
 
   $$(".stage-link").forEach((el) => el.addEventListener("click", () => showPage(el.dataset.page)));
@@ -2589,6 +2637,7 @@ function bind() {
   });
 
   $("generateStory").addEventListener("click", generateStory);
+  $("adaptStory").addEventListener("click", adaptStory);
   $("saveStory").addEventListener("click", saveStory);
   $("approveStory").addEventListener("click", approveStory);
   $("requestStoryChanges").addEventListener("click", requestStoryChanges);
