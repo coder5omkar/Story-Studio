@@ -97,6 +97,7 @@ a { color: var(--blue); }
   font-size: 12px;
   white-space: nowrap;
 }
+.job-pill .stop-btn { padding: 3px 8px; font-size: 10px; }
 .spinner {
   width: 12px; height: 12px;
   border: 2px solid rgba(240, 179, 92, .28);

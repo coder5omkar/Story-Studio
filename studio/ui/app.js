@@ -1774,6 +1774,10 @@ function renderJobPanel() {
   $("prodBar").style.width = `${pct}%`;
   $("prodPct").textContent = job ? `${job.kind} · ${pct}% · ${job.status}` : "idle";
   $("prodLog").textContent = job?.logs?.length ? job.logs.join("\n") : (job ? job.message : "No job running.");
+  const active = job && ["queued", "running", "cancelling"].includes(job.status);
+  $("prodStop").classList.toggle("hidden", !active);
+  $("prodStop").disabled = !job || job.status === "cancelling";
+  $("prodStop").textContent = job?.status === "cancelling" ? "Stopping…" : "■ Stop";
 }
 
 // ---------------------------------------------------------------------------
@@ -1884,7 +1888,8 @@ function renderSceneReview() {
   $("reviewSave").disabled = busy;
   $("reviewRegenVoice").disabled = busy;
   $("reviewRegenImage").disabled = busy;
-  $("reviewApprove").disabled = busy || plan === "approved" || S.reviewDirty;
+  $("reviewApprove").disabled = busy || plan === "approved";
+  $("reviewApprove").textContent = plan === "approved" ? "Plan approved ✓" : "Approve plan";
 
   $("reviewPlanState").textContent = plan === "approved"
     ? "Scene plan is approved. Review the assets, then assemble."
@@ -1905,7 +1910,7 @@ function updateReviewDirty() {
   S.reviewDirty = dirty;
   $("reviewDirty").classList.toggle("hidden", !dirty);
   const plan = stageStatus("scenes");
-  $("reviewApprove").disabled = !!S.data?.active_job || plan === "approved" || dirty;
+  $("reviewApprove").disabled = !!S.data?.active_job || plan === "approved";
   return dirty;
 }
 
@@ -1980,7 +1985,10 @@ async function saveSceneReview({ silent = false } = {}) {
 }
 
 async function approveScenePlan() {
-  if (S.reviewDirty) return toast("Save this scene before approving the plan", "error");
+  if (S.reviewDirty) {
+    const saved = await saveSceneReview({ silent: true });
+    if (!saved) return;
+  }
   try {
     await api(`/api/projects/${S.pid}/scenes/approve`, { method: "POST" });
     toast("Scene plan approved");
@@ -2170,6 +2178,13 @@ function renderPublishLog() {
   el.textContent = S.job?.logs?.length
     ? S.job.logs.join("\n")
     : (S.job ? S.job.message : "No job running.");
+  const active = S.job && ["queued", "running", "cancelling"].includes(S.job.status);
+  const stop = $("publishStop");
+  if (stop) {
+    stop.classList.toggle("hidden", !active);
+    stop.disabled = !S.job || S.job.status === "cancelling";
+    stop.textContent = S.job?.status === "cancelling" ? "Stopping…" : "■ Stop";
+  }
 }
 
 function markPublishTitle(title) {
@@ -2428,11 +2443,12 @@ async function pollJob() {
     renderJobPill();
     renderJobPanel();
     renderPublishLog();
-    if (job.status === "done" || job.status === "failed") {
+    if (["done", "failed", "cancelled"].includes(job.status)) {
       clearInterval(S.poll);
       S.poll = null;
       $("jobPill").classList.add("hidden");
       if (job.status === "failed") toast(job.error || "Job failed", "error");
+      else if (job.status === "cancelled") toast("Job cancelled");
       else toast("Job complete", "ok");
       await loadProject();
       S.job = job;
@@ -2445,16 +2461,35 @@ async function pollJob() {
   }
 }
 
+async function cancelJob() {
+  if (!S.jobId) return;
+  try {
+    const res = await api(`/api/jobs/${S.jobId}/cancel`, { method: "POST" });
+    S.job = res.job;
+    renderJobPill();
+    renderJobPanel();
+    renderPublishLog();
+    toast("Stopping job…");
+  } catch (e) {
+    toast(e.message, "error");
+  }
+}
+
 function renderJobPill() {
   const job = S.job;
   const pill = $("jobPill");
-  if (!job || !["queued", "running"].includes(job.status)) {
+  const active = job && ["queued", "running", "cancelling"].includes(job.status);
+  if (!active) {
     pill.classList.add("hidden");
     return;
   }
   pill.classList.remove("hidden");
   $("jobPillText").textContent = job.message || job.kind;
   $("jobPillPct").textContent = `${job.progress || 0}%`;
+  const stop = $("jobStop");
+  stop.classList.toggle("hidden", !["queued", "running"].includes(job.status));
+  stop.disabled = job.status === "cancelling";
+  stop.textContent = job.status === "cancelling" ? "Stopping…" : "■ Stop";
 }
 
 // ---------------------------------------------------------------------------
@@ -2629,6 +2664,9 @@ function bind() {
   $("rejectClip").addEventListener("click", () => rejectSample("clip"));
 
   $("startProduction").addEventListener("click", startProduction);
+  $("jobStop").addEventListener("click", cancelJob);
+  $("prodStop").addEventListener("click", cancelJob);
+  $("publishStop").addEventListener("click", cancelJob);
   $("sceneStatusTable").addEventListener("click", (e) => {
     const retry = e.target.closest("[data-retry]");
     if (retry) {

@@ -111,6 +111,15 @@ settings, and the gate card lists what is still unapproved.
    - Thumbnails are saved to
      `projects/<id>/studio/samples/thumbnail/thumbnail.png`.
 
+### Stopping jobs
+
+The sticky job pill at the top has a **Stop** button for any running job. The
+Production live-job card and the Publish generation log also show a Stop button.
+Cancelling kills the running pipeline subprocess, keeps completed assets, marks
+the job **cancelled**, and leaves production **stale** rather than failed so it
+can be resumed. The **Approve plan** button in Production saves the current scene
+edit first, then approves; an approved plan shows **Plan approved ✓**.
+
 ### Visual styles
 
 Choose a preset under **Settings → Visuals → Style preset**. Each preset sets a

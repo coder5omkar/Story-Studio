@@ -21,6 +21,7 @@
     <span class="spinner"></span>
     <span id="jobPillText">Working</span>
     <span id="jobPillPct" class="mono"></span>
+    <button id="jobStop" class="btn danger small stop-btn hidden" type="button">■ Stop</button>
   </div>
 </header>
 
@@ -472,7 +473,13 @@
       </div>
 
       <div class="card">
-        <div class="card-head"><h3>Live job</h3><span id="prodPct" class="mono muted">idle</span></div>
+        <div class="card-head">
+          <h3>Live job</h3>
+          <div class="row">
+            <span id="prodPct" class="mono muted">idle</span>
+            <button id="prodStop" class="btn danger small hidden" type="button">■ Stop</button>
+          </div>
+        </div>
         <div class="progress"><div id="prodBar" class="progress-bar"></div></div>
         <pre id="prodLog" class="log">No job running.</pre>
       </div>
@@ -554,7 +561,10 @@
       </div>
 
       <div class="card">
-        <div class="card-head"><h3>Generation log</h3></div>
+        <div class="card-head">
+          <h3>Generation log</h3>
+          <button id="publishStop" class="btn danger small hidden" type="button">■ Stop</button>
+        </div>
         <pre id="publishLog" class="log">No job running.</pre>
       </div>
     </section>

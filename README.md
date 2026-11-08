@@ -33,6 +33,8 @@ final video.
 - **Scene-by-scene review** before assembly: see every image, listen to every
   voice clip with autoplay-next, and edit the script or image prompt in place.
 - **Resumable batch production** with per-scene image/voice retry.
+- **Stop any running job** from the sticky job pill or the Production/Publish
+  log cards; completed assets are kept for resuming.
 - **Final review** with approval and optional subtitle burn-in.
 - **Series room** for one continuing show: editable Series Bible, recurring Cast
   Bible with voice/appearance profiles, continuity memory, and an Episode Board

@@ -937,6 +937,14 @@ def get_job(job_id: str) -> dict:
     return job.to_dict(include_logs=True)
 
 
+@app.post("/api/jobs/{job_id}/cancel")
+def cancel_job(job_id: str) -> dict:
+    job = manager.cancel(job_id)
+    if not job:
+        raise HTTPException(409, "Job is not running")
+    return {"job": job.to_dict(include_logs=False)}
+
+
 @app.get("/api/projects/{pid}/jobs")
 def project_jobs(pid: str) -> list:
     _project(pid)

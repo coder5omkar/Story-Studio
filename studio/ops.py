@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 from . import providers, qa, store
-from .jobs import Job
+from .jobs import Job, JobCancelled
 from . import thumbnail
 
 ROOT = store.ROOT
@@ -80,6 +80,7 @@ def _run_script(
     if COMFY_SITE.exists():
         env["PYTHONPATH"] = str(COMFY_SITE) + os.pathsep + env.get("PYTHONPATH", "")
     cmd = [str(python or _py()), str(PIPELINE_DIR / script), *args]
+    job.check_cancelled()
     job.log("$ " + " ".join(str(c) for c in cmd))
     proc = subprocess.Popen(
         cmd,
@@ -92,15 +93,22 @@ def _run_script(
         errors="replace",
         bufsize=1,
     )
-    assert proc.stdout is not None
-    for raw in proc.stdout:
-        line = raw.rstrip()
-        if not line:
-            continue
-        job.log(line)
-        if on_line:
-            on_line(line)
-    code = proc.wait()
+    job.set_process(proc)
+    if job.cancel_event.is_set():
+        job.cancel()
+    try:
+        assert proc.stdout is not None
+        for raw in proc.stdout:
+            line = raw.rstrip()
+            if not line:
+                continue
+            job.log(line)
+            if on_line:
+                on_line(line)
+        code = proc.wait()
+    finally:
+        job.clear_process(proc)
+    job.check_cancelled()
     if code != 0:
         raise RuntimeError(f"{script} exited with code {code}")
 
@@ -149,6 +157,7 @@ def generate_story(
     instructions = (instructions or "").strip()
     state["settings"]["story_instructions"] = instructions
     extra = f"\nअतिरिक्त निर्देश:\n{instructions}\n" if instructions else ""
+    job.check_cancelled()
 
     if chapters <= 1:
         job.set_progress(5, "Writing story")
@@ -160,6 +169,7 @@ def generate_story(
             ],
             num_predict=min(8192, max(2048, target * 3)),
         )
+        job.check_cancelled()
         chunks = [_clean_markdown(text)]
     else:
         job.set_progress(2, "Writing chapter outline")
@@ -186,11 +196,13 @@ def generate_story(
         )
         job.log("Outline ready")
         job.log(outline[:1200])
+        job.check_cancelled()
 
         part_words = max(80, round(target / chapters))
         chunks = []
         previous = ""
         for i in range(chapters):
+            job.check_cancelled()
             pct = 5 + 88 * i / chapters
             job.set_progress(pct, f"Writing chapter {i + 1}/{chapters}")
             ending_rule = (
@@ -248,10 +260,12 @@ def generate_story(
                 if retry_count > part_count:
                     part = retry
                     part_count = retry_count
+            job.check_cancelled()
             chunks.append(part)
             previous = part
             job.log(f"Chapter {i + 1}/{chapters} ready ({part_count} words)")
 
+    job.check_cancelled()
     text = "\n\n".join(chunks).strip() + "\n"
     paths = store.ensure_dirs(pid)
     store.version_artifact(pid, state, "story", paths["story"])
@@ -531,6 +545,7 @@ def repair_scene_prompts(pid: str, state: dict, job: Job) -> dict:
         if prompt != str(scene.get("image_prompt", "")).strip():
             scene["image_prompt"] = prompt
             changed += 1
+    job.check_cancelled()
     store.version_artifact(pid, state, "scenes", paths["scenes"])
     paths["scenes"].write_text(
         json.dumps(scenes, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -575,6 +590,7 @@ def generate_scenes(pid: str, state: dict, job: Job, *, target_words: int = 24, 
     )
     scenes: list[dict] = []
     for start in range(0, len(chunks), batch_size):
+        job.check_cancelled()
         batch = chunks[start:start + batch_size]
         numbered = "\n".join(f"{i + 1}. {c}" for i, c in enumerate(batch))
         user = f"""
@@ -599,6 +615,7 @@ Narration chunks:
                 [{"role": "system", "content": system}, {"role": "user", "content": user}],
                 num_predict=4096,
             )
+            job.check_cancelled()
             items = providers.extract_json(raw)
             if not isinstance(items, list):
                 raise ValueError(f"expected JSON array, got {type(items).__name__}")
@@ -610,6 +627,8 @@ Narration chunks:
                 })
             items = items[:len(batch)]
             items = [item if isinstance(item, dict) else {"image_prompt": str(item)} for item in items]
+        except JobCancelled:
+            raise
         except Exception as exc:
             job.log(f"Batch {start // batch_size + 1} failed ({exc}); using fallback prompts")
             items = [{
@@ -637,6 +656,7 @@ Narration chunks:
         job.set_progress(5 + 90 * done / len(chunks), f"Scenes: {done}/{len(chunks)}")
         job.log(f"Batch {start // batch_size + 1}: {len(scenes)}/{len(chunks)}")
 
+    job.check_cancelled()
     store.version_artifact(pid, state, "scenes", paths["scenes"])
     paths["scenes"].write_text(json.dumps(scenes, ensure_ascii=False, indent=2), encoding="utf-8")
     validation = qa.validate_scenes(scenes)
@@ -748,6 +768,7 @@ Scenes:
         temperature=0.4,
         num_predict=max(2000, len(scenes) * 160),
     )
+    job.check_cancelled()
     parsed = _parse_prompt_lines(raw)
     if not parsed:
         raise RuntimeError("The model returned no rewritten prompts; scene plan left unchanged")
@@ -1094,6 +1115,7 @@ def start_production(
     base = 0.0
     try:
         for stage_name in stages:
+            job.check_cancelled()
             span = weights.get(stage_name, 10)
             if stage_name == "images":
                 job.set_progress(base, "Generating images")
@@ -1134,6 +1156,10 @@ def start_production(
                 _run_script(pid, state, "assemble.py", args, job)
             base += span
             job.set_progress(base, f"{stage_name} done")
+    except JobCancelled:
+        store.set_stage(state, "production", "stale", approved=False, notes="Batch production cancelled")
+        store.save_state(pid, state)
+        raise
     except Exception:
         store.set_stage(state, "production", "failed", approved=False, notes="Batch production failed")
         store.save_state(pid, state)
@@ -1249,6 +1275,7 @@ Return only this JSON object:
         temperature=0.75,
         num_predict=3200,
     )
+    job.check_cancelled()
     job.set_progress(70, "Parsing publish kit")
     data = providers.extract_json(raw)
     if not isinstance(data, dict):
