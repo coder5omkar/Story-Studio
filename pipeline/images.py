@@ -8,6 +8,8 @@ import os
 import sys
 from pathlib import Path
 
+from PIL import Image, ImageFilter
+
 from comfy_client import ComfyClient, load_workflow, patch
 
 ROOT = Path(__file__).resolve().parent
@@ -55,9 +57,46 @@ def build_prompt(scene: dict) -> str:
     )
 
 
+def _lora_chain(image_cfg: dict) -> list[dict]:
+    raw = image_cfg.get("loras")
+    if isinstance(raw, list) and raw:
+        return [lora for lora in raw if isinstance(lora, dict) and lora.get("name")]
+    name = str(image_cfg.get("lora_name") or "").strip()
+    if not name:
+        return []
+    return [{
+        "name": name,
+        "strength": image_cfg.get("lora_strength", 0.8),
+        "clip_strength": image_cfg.get("lora_clip_strength"),
+    }]
+
+
+def _apply_loras(workflow: dict, image_cfg: dict, model_ref, clip_ref, start_id: int = 20):
+    for index, lora in enumerate(_lora_chain(image_cfg)):
+        node_id = str(start_id + index)
+        strength = float(lora.get("strength", 0.8))
+        workflow[node_id] = {
+            "class_type": "LoraLoader",
+            "inputs": {
+                "model": model_ref,
+                "clip": clip_ref,
+                "lora_name": str(lora["name"]),
+                "strength_model": strength,
+                "strength_clip": float(lora.get("clip_strength") or strength),
+            },
+        }
+        model_ref = [node_id, 0]
+        clip_ref = [node_id, 1]
+    return model_ref, clip_ref
+
+
 def sdxl_workflow(scene: dict, seed: int | None = None) -> dict:
     image_cfg = CONFIG["image"]
     workflow = load_workflow(ROOT / "workflows" / "sdxl_api.json")
+    model_ref, clip_ref = _apply_loras(workflow, image_cfg, ["1", 0], ["1", 1])
+    workflow["5"]["inputs"]["model"] = model_ref
+    workflow["2"]["inputs"]["clip"] = clip_ref
+    workflow["3"]["inputs"]["clip"] = clip_ref
     patch(workflow, "2", {"text": build_prompt(scene)})
     if "negative_prompt" in image_cfg:
         patch(workflow, "3", {"text": str(image_cfg.get("negative_prompt") or "")})
@@ -102,6 +141,12 @@ def ipadapter_workflow(scene: dict, seed: int | None = None) -> dict:
     reference = str(image_cfg.get("reference_image") or "").strip()
     if reference:
         patch(workflow, "3", {"image": reference})
+    model_ref, clip_ref = _apply_loras(workflow, image_cfg, ["1", 0], ["1", 1])
+    workflow["2"]["inputs"]["model"] = model_ref
+    workflow["5"]["inputs"]["clip"] = clip_ref
+    workflow["6"]["inputs"]["clip"] = clip_ref
+    if image_cfg.get("ipadapter_weight") is not None:
+        patch(workflow, "4", {"weight": float(image_cfg["ipadapter_weight"])})
     patch(workflow, "5", {"text": build_prompt(scene)})
     if "negative_prompt" in image_cfg:
         patch(workflow, "6", {"text": str(image_cfg.get("negative_prompt") or "")})
@@ -150,6 +195,23 @@ def faceid_workflow(scene: dict, seed: int | None = None) -> dict:
     return workflow
 
 
+def _upscale_image(dest: Path, image_cfg: dict) -> None:
+    if not image_cfg.get("upscale"):
+        return
+    width = int(image_cfg.get("upscale_width", 1920))
+    height = int(image_cfg.get("upscale_height", 1080))
+    try:
+        with Image.open(dest) as source:
+            image = source.convert("RGB")
+            if image.size == (width, height):
+                return
+            image = image.resize((width, height), Image.LANCZOS)
+            image = image.filter(ImageFilter.UnsharpMask(radius=1.0, percent=55, threshold=2))
+            image.save(dest, "PNG", optimize=True)
+    except Exception as exc:
+        print(f"  upscale skipped: {exc}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--engine", choices=["sdxl", "zimage", "ipadapter", "faceid"], default="sdxl")
@@ -196,6 +258,7 @@ def main() -> int:
         except Exception as exc:
             print(f"  FAILED: {exc}")
             return 1
+        _upscale_image(dest, CONFIG["image"])
         print(f"  saved {dest.stat().st_size / 1024:.0f} KB")
 
     return 0

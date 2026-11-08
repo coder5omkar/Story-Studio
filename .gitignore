@@ -12,6 +12,9 @@ node_modules/
 OpenMontage/
 tts_env/
 models/
+train_env/
+training/
+datasets/
 
 # Generated projects, renders, and logs
 projects/

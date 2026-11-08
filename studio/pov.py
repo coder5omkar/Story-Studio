@@ -2,16 +2,27 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 from . import store
 
+POV_STYLE_LORA = "vector-cartoon-illustration.safetensors"
+POV_CHARACTER_LORA = "aman_character.safetensors"
+COMFY_LORAS = Path(os.environ.get(
+    "COMFY_LORAS_DIR",
+    r"D:\ComfyUI\ComfyUI_windows_portable\ComfyUI\models\loras",
+))
+
 POV_STYLE_PREFIX = (
-    "clean 2D vector cartoon still, flat cel shading, thin dark outlines, bright warm pastel palette, "
-    "simple friendly faces, minimal detail, 2D explainer animation style, Indian middle-class homes, "
-    "offices and banks, cinematic 16:9 composition, natural light, no text, no watermark"
+    "Vector Cartoon Illustration, clean 2D vector cartoon still, flat cel shading, thin dark outlines, "
+    "bright warm pastel palette, simple friendly faces, minimal detail, 2D explainer animation style, "
+    "Indian middle-class homes, offices and banks, cinematic 16:9 composition, natural light, "
+    "no text, no watermark"
 )
 
 POV_CHARACTER = (
-    "the protagonist is Aman, a 32-year-old Indian man with short black hair, a short neatly trimmed "
+    "aman, the protagonist is a 32-year-old Indian man with short black hair, a short neatly trimmed "
     "beard, warm brown skin, simple friendly cartoon facial features, wearing a dark green polo shirt, "
     "dark jeans and a simple watch; keep the same face, hair, beard, green shirt and age consistent "
     "in every scene"
@@ -56,6 +67,15 @@ POV_ADAPT_INSTRUCTIONS = """इस ब्लूप्रिंट को एक 
 """
 
 
+def _pov_loras() -> list[dict]:
+    loras: list[dict] = []
+    if (COMFY_LORAS / POV_STYLE_LORA).exists():
+        loras.append({"name": POV_STYLE_LORA, "strength": 0.5})
+    if (COMFY_LORAS / POV_CHARACTER_LORA).exists():
+        loras.append({"name": POV_CHARACTER_LORA, "strength": 0.8})
+    return loras
+
+
 def apply_template(state: dict) -> dict:
     """Apply the POV Finance visual, voice, model and publishing defaults."""
     settings = state.setdefault("settings", {})
@@ -71,7 +91,15 @@ def apply_template(state: dict) -> dict:
         "cfg": 7.0,
         "sampler": "dpmpp_2m",
         "scheduler": "karras",
+        "upscale": True,
+        "upscale_width": 1920,
+        "upscale_height": 1080,
     })
+    loras = _pov_loras()
+    if loras:
+        image["loras"] = loras
+    else:
+        image.pop("loras", None)
     tts = settings.setdefault("tts", {})
     tts["reference"] = POV_TTS_REFERENCE
     llm = settings.setdefault("llm", {})

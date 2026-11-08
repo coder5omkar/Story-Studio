@@ -331,6 +331,8 @@ second-person narration and a calm male Hindi voice.
 - ![POV sample 2](channel/pov-samples/pov_sample_2.png)
 - ![POV sample 3](channel/pov-samples/pov_sample_3.png)
 - ![POV thumbnail with YOU tag](channel/pov-samples/thumbnail_sample.png)
+- ![Aman character sheet](channel/pov-samples/aman_character_sheet.png)
+- [Aman face reference](channel/pov-samples/aman_face_ref.png)
 - [Hindi voice sample](channel/pov-samples/voice_sample.wav)
 - [Sample adapted story](channel/pov-samples/adapted_story_sample.md)
 
@@ -381,6 +383,26 @@ description and a duplicate-safe negative prompt into every scene.
   leaves clean space on the left for a large Hindi title.
 - The renderer draws the red **YOU** tag with an arrow plus the Hindi thumbnail
   title.
+
+### Local image upgrade
+
+The POV preset uses two local upgrades on top of SDXL:
+
+- **Vector-cartoon LoRA** — `vector-cartoon-illustration.safetensors` at 0.5
+  strength, from
+  [Muapi/vector-cartoon-illustration](https://huggingface.co/Muapi/vector-cartoon-illustration).
+  It produces cleaner flat shapes, thinner outlines and brighter colors than SDXL
+  base alone.
+- **1080p upscale** — every POV image is resized to 1920×1080 with Lanczos and a
+  light unsharp mask, matching the final video resolution.
+- **Aman character reference** — `channel/pov-samples/aman_face_ref.png` is the
+  canonical face crop. The optional IPAdapter/FaceID path can use it for close-up
+  shots.
+
+The LoRA files are local model weights and are not committed to the repository.
+Place `vector-cartoon-illustration.safetensors` in
+`ComfyUI/models/loras/`. The optional 4x upscaler
+`4x-UltraSharp.pth` belongs in `ComfyUI/models/upscale_models/`.
 
 ### Current limitations
 

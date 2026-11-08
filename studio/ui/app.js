@@ -177,11 +177,11 @@ const STYLE_PRESETS = {
   "pov-finance": {
     engine: "sdxl",
     prefix:
-      "clean 2D vector cartoon still, flat cel shading, thin dark outlines, bright warm pastel palette, " +
-      "simple friendly faces, minimal detail, 2D explainer animation style, Indian middle-class homes, " +
-      "offices and banks, cinematic 16:9 composition, natural light, no text, no watermark",
+      "Vector Cartoon Illustration, clean 2D vector cartoon still, flat cel shading, thin dark outlines, " +
+      "bright warm pastel palette, simple friendly faces, minimal detail, 2D explainer animation style, " +
+      "Indian middle-class homes, offices and banks, cinematic 16:9 composition, natural light, no text, no watermark",
     character:
-      "the protagonist is Aman, a 32-year-old Indian man with short black hair, a short neatly trimmed beard, " +
+      "aman, the protagonist is a 32-year-old Indian man with short black hair, a short neatly trimmed beard, " +
       "warm brown skin, simple friendly cartoon facial features, wearing a dark green polo shirt, dark jeans " +
       "and a simple watch; keep the same face, hair, beard, green shirt and age consistent in every scene",
     negative:
