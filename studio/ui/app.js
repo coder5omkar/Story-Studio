@@ -2244,8 +2244,21 @@ function renderFinal() {
   if (document.activeElement !== $("finalSubtitles")) {
     $("finalSubtitles").checked = !!S.data.state.settings.subtitles;
   }
+  if (document.activeElement !== $("finalMusic")) {
+    const finalMusic = S.data.state.settings.final_music;
+    $("finalMusic").checked = finalMusic !== undefined
+      ? !!finalMusic
+      : S.data.state.settings.music?.enabled !== false;
+  }
+  const sceneStatus = S.data.scene_status || [];
+  const assetsReady = sceneStatus.length > 0 && sceneStatus.every((s) => s.image && s.audio);
   $("renderFinal").disabled =
-    !S.data.gates?.ok || stageStatus("production") !== "done" || !!S.data.active_job;
+    !S.data.gates?.ok || !assetsReady || !!S.data.active_job;
+  $("finalHint").textContent = !S.data.gates?.ok
+    ? "Approve every production gate first."
+    : (assetsReady
+      ? "Final render uses the existing images and voice clips. Music is optional."
+      : "Every scene needs its image and voice clip before final render.");
   $("approveFinal").disabled = !node.path || !!S.data.active_job;
 }
 
@@ -2255,6 +2268,7 @@ async function renderFinalVideo() {
       method: "POST",
       body: {
         subtitles: $("finalSubtitles").checked,
+        with_music: $("finalMusic").checked,
         out_name: $("finalName").value.trim() || "final.mp4",
       },
     });

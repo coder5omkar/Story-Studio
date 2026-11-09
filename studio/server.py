@@ -917,19 +917,40 @@ def retry_scene(pid: str, payload: dict = Body(...)) -> dict:
 def render_final(pid: str, payload: dict = Body(default={})) -> dict:
     state = _project(pid)
     subtitles = bool(payload.get("subtitles", state["settings"].get("subtitles", True)))
+    with_music = payload.get("with_music")
+    if with_music is None:
+        with_music = bool(state["settings"].get(
+            "final_music",
+            state["settings"].get("music", {}).get("enabled", True),
+        ))
+    else:
+        with_music = bool(with_music)
     out_name = str(payload.get("out_name", "final.mp4")).strip() or "final.mp4"
     if "/" in out_name or "\\" in out_name or not out_name.endswith(".mp4"):
         raise HTTPException(400, "out_name must be a simple .mp4 filename")
     gates = ops.check_gates(state)
     if not gates["ok"]:
         raise HTTPException(409, detail={"message": "Approval gates missing", "gates": gates})
-    if store.stage(state, "production").get("status") != "done":
-        raise HTTPException(409, "Run batch production before rendering the final video")
+    scenes = _scenes(pid)
+    if not scenes:
+        raise HTTPException(409, "Generate the scene plan first")
+    paths = store.project_paths(pid)
+    missing = []
+    for scene in scenes:
+        sid = int(scene.get("id", 0))
+        image = paths["images"] / f"scene_{sid:03d}.png"
+        audio = paths["audio"] / f"scene_{sid:03d}.wav"
+        if not image.exists() or not audio.exists():
+            missing.append(sid)
+    if missing:
+        preview = ", ".join(str(sid) for sid in missing[:12])
+        suffix = "..." if len(missing) > 12 else ""
+        raise HTTPException(409, f"Missing images or voice for scenes: {preview}{suffix}")
     state["settings"]["subtitles"] = subtitles
     store.write_project_config(pid, state)
     store.save_state(pid, state)
     return _start(pid, "final", lambda job: ops.render_final(
-        pid, state, job, subtitles=subtitles, out_name=out_name,
+        pid, state, job, subtitles=subtitles, out_name=out_name, with_music=with_music,
     ))
 
 

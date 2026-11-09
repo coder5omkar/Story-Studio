@@ -324,6 +324,10 @@ or `OPENAI_API_KEY`.
    - Retry individual scenes without rerunning everything.
 5. **Final review**
    - Watch the assembled video, approve it, and download `final.mp4`.
+   - **Include music bed** is a per-render checkbox. Uncheck it to render
+     narration only; set `final_music` to false to make that the project default.
+   - Final render works from existing images and voice clips even if production
+     is marked stale, as long as every scene has both assets.
 6. **Publish kit**
    - Generate five Hindi titles, a YouTube description (hook, moral, CTA,
      disclaimer, hashtags), tags and thumbnail text from the finished story.

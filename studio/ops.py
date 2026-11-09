@@ -1518,15 +1518,19 @@ def render_final(
     *,
     subtitles: bool,
     out_name: str = "final.mp4",
+    with_music: bool | None = None,
 ) -> dict:
     paths = store.ensure_dirs(pid)
     args = ["--out-name", out_name]
     if not subtitles:
         args.append("--no-subs")
+    use_music = bool(state["settings"].get("music", {}).get("enabled", True)) if with_music is None else bool(with_music)
     has_music = (paths["audio"] / "music.mp3").exists()
-    if not bool(state["settings"].get("music", {}).get("enabled", True)) or not has_music:
+    if not use_music:
         args.append("--no-music")
-    if not has_music:
+        job.log("Music disabled for this final render.")
+    elif not has_music:
+        args.append("--no-music")
         job.log("Music file is missing; assembling without music.")
     job.set_progress(5, "Assembling final video")
     _run_script(pid, state, "assemble.py", args, job)
