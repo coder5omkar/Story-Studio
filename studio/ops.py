@@ -771,6 +771,9 @@ def regenerate_scene_prompt(pid: str, state: dict, job: Job, *, scene_id: int) -
     scene = next((s for s in scenes if int(s.get("id", -1)) == int(scene_id)), None)
     if scene is None:
         raise RuntimeError(f"Scene {scene_id} not found")
+    scene_index = scenes.index(scene)
+    previous = scenes[scene_index - 1] if scene_index > 0 else None
+    following = scenes[scene_index + 1] if scene_index + 1 < len(scenes) else None
 
     llm = state.get("settings", {}).get("llm", {})
     model_label = f"{llm.get('provider', '')} / {llm.get('model', '')}".strip(" /")
@@ -778,13 +781,32 @@ def regenerate_scene_prompt(pid: str, state: dict, job: Job, *, scene_id: int) -
     job.set_progress(10, f"Writing scene {scene_id} prompt with {model_label}")
     image_cfg = state.get("settings", {}).get("image", {})
     system = _scene_prompt_system(image_cfg)
-    user = f"""
-Rewrite the image prompt for this scene. Use only the narration below and the visual style
-and character instructions. Do not keep any metaphor or object from an older prompt unless
-the narration actually mentions it.
+    context_lines = [
+        f"Story: {state.get('title', '')}",
+    ]
+    if previous:
+        context_lines.append(
+            f"Previous scene narration: {previous.get('narration', '')}"
+        )
+        if previous.get("image_prompt"):
+            context_lines.append(
+                f"Previous scene visual: {previous.get('image_prompt', '')}"
+            )
+    else:
+        context_lines.append("Previous scene: none (this is the first scene).")
+    context_lines.append(f"CURRENT scene narration: {scene.get('narration', '')}")
+    if following:
+        context_lines.append(f"Next scene narration: {following.get('narration', '')}")
+    else:
+        context_lines.append("Next scene: none (this is the final scene).")
 
-Narration:
-{scene.get('narration', '')}
+    user = f"""
+Rewrite the image prompt for the CURRENT scene only. Use the previous and next scene
+narration only for continuity of character, clothing, location, props and mood. Do not
+copy an object from a neighbouring scene unless the current narration mentions it. Keep
+the same character identity and art style as the rest of the story.
+
+{chr(10).join(context_lines)}
 
 Return only this JSON object:
 {{
@@ -846,13 +868,31 @@ def regenerate_all_prompts(pid: str, state: dict, job: Job, *, batch_size: int =
     for start in range(0, total, batch_size):
         job.check_cancelled()
         batch = scenes[start:start + batch_size]
-        numbered = "\n".join(
-            f"{index + 1}. {scene.get('narration', '')}"
-            for index, scene in enumerate(batch)
-        )
+        previous = scenes[start - 1] if start > 0 else None
+        following = scenes[start + len(batch)] if start + len(batch) < total else None
+        numbered_lines = []
+        for index, scene in enumerate(batch, 1):
+            chapter = f"[Chapter {scene.get('chapter')}] " if scene.get("chapter") else ""
+            numbered_lines.append(f"{index}. {chapter}{scene.get('narration', '')}")
+        numbered = "\n".join(numbered_lines)
+        context_lines = [f"Story: {state.get('title', '')}"]
+        if previous:
+            context_lines.append(f"Previous scene narration: {previous.get('narration', '')}")
+            if previous.get("image_prompt"):
+                context_lines.append(f"Previous scene visual: {previous.get('image_prompt', '')}")
+        else:
+            context_lines.append("Previous scene: none (this is the opening batch).")
+        if following:
+            context_lines.append(f"Next scene narration: {following.get('narration', '')}")
+        else:
+            context_lines.append("Next scene: none (this is the final batch).")
         user = f"""
 For each narration chunk below, rewrite the image prompt from scratch. Ignore any older
-prompt and describe only what the narration says. Keep the same visual style and character.
+prompt and describe only what the current narration says. Keep the same character,
+clothing, location, props and art style across the batch. Do not introduce a new named
+character. Use the previous and next scene only for continuity.
+
+{chr(10).join(context_lines)}
 
 Return a JSON array with exactly {len(batch)} objects:
 [
