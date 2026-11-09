@@ -285,10 +285,16 @@ or `OPENAI_API_KEY`.
    - Generate narration chunks and English image prompts.
    - Use **Fix English prompts** for Hindi/short prompts.
    - Use **Restyle for current style** after changing the visual preset.
-   - Change the project LLM in Settings, then use **Regenerate prompts** to
-     rewrite every image prompt from its narration, or **Regenerate prompt**
-     in the Production scene review for one scene. The active prompt model is
-     shown on both pages.
+   - Use **Regenerate scene plan** to replace the whole plan from the approved
+     story, or **Regenerate prompts** to rewrite only the image prompts.
+   - Change the project LLM per step in **Settings → Models by step** (story,
+     scene plan, prompt writer, publish kit). The active model is shown on each
+     page and in the job log.
+   - Prompt regeneration includes the previous and next scene narration plus the
+     previous scene's visual, so character, clothing, location and mood stay
+     continuous.
+   - The prompt writer has a wardrobe lock: the protagonist's outfit from the
+     recurring-character description is kept identical in every scene.
    - Review and approve.
 3. **Sample studio**
    - **Voice:** audition Chatterbox with exaggeration/CFG/temperature. Click
@@ -302,10 +308,14 @@ or `OPENAI_API_KEY`.
    - Approve every sample required by the gates.
 4. **Production**
    - Batch images, music, narration and assembly. Completed assets are skipped.
+   - **Regenerate all** re-renders every image, voice clip, music bed and the
+     final video, even if the assets already exist.
    - **Scene review:** before assembling, step through every scene with its large
      image, voice player and script. Autoplay-next plays the voices in order.
      Edit the script or image prompt, save, and regenerate that scene's voice or
-     image. Saving keeps the style approvals; click **Approve plan** when done.
+     image. **Regenerate prompt** rewrites only the current scene's image prompt
+     from its narration, using the previous/next scene as context. Saving keeps
+     the style approvals; click **Approve plan** when done.
      Image retries use a fresh seed, so each regeneration is a new variation.
    - Assembling again reuses existing clips unless their image, timing or scene
      prompt changed, so a failed mix does not re-render every clip.

@@ -48,6 +48,30 @@ def _tts_py() -> Path:
     return TTS_PY if TTS_PY.exists() else Path(sys.executable)
 
 
+def _llm_for_step(state: dict, step: str) -> dict:
+    """Return a settings copy whose LLM is overridden by a per-step model."""
+    settings = dict(state.get("settings", {}))
+    base = dict(settings.get("llm", {}))
+    override = (settings.get("llm_steps") or {}).get(step) or {}
+    provider = str(override.get("provider") or base.get("provider") or "ollama")
+    model = str(override.get("model") or base.get("model") or "")
+    api_base = str(override.get("api_base") or "").strip()
+    if not api_base:
+        if provider == "opencode-go":
+            api_base = store.OPENCODE_GO_BASE
+        elif provider == "opencode":
+            api_base = store.OPENCODE_ZEN_BASE
+        elif provider == "openai":
+            api_base = base.get("api_base") or store.DEFAULT_API_BASE
+        else:
+            api_base = base.get("api_base", "")
+    llm = {**base, "provider": provider, "model": model}
+    if api_base:
+        llm["api_base"] = api_base
+    settings["llm"] = llm
+    return settings
+
+
 def _clean_markdown(text: str) -> str:
     text = re.sub(r"^```(?:markdown|md)?\s*", "", text.strip())
     text = re.sub(r"\s*```$", "", text)
@@ -151,8 +175,9 @@ def generate_story(
     chapters: int,
     instructions: str = "",
 ) -> dict:
-    settings = state["settings"]
+    settings = _llm_for_step(state, "story")
     target = max(200, int(minutes * 130))
+    job.log(f"Story model: {settings['llm'].get('provider')} / {settings['llm'].get('model')}")
     chapters = max(1, int(chapters or settings.get("story_chapters", 5)))
     instructions = (instructions or "").strip()
     state["settings"]["story_instructions"] = instructions
@@ -334,7 +359,7 @@ Return a detailed adaptation blueprint in Hindi, not the full story:
 Return only the blueprint.
 """.strip()
     blueprint = providers.chat(
-        state["settings"],
+        _llm_for_step(state, "story"),
         [
             {"role": "system", "content": "You are a senior Indian POV finance story editor. Return only the adaptation blueprint."},
             {"role": "user", "content": prompt},
@@ -607,7 +632,7 @@ def repair_scene_prompts(pid: str, state: dict, job: Job) -> dict:
         raise RuntimeError("Scene plan is empty")
     job.set_progress(10, "Restyling image prompts into English")
     repaired = _repair_image_prompts(
-        state["settings"], [scene.get("image_prompt", "") for scene in scenes], job
+        _llm_for_step(state, "prompts"), [scene.get("image_prompt", "") for scene in scenes], job
     )
     changed = 0
     for scene, prompt in zip(scenes, repaired):
@@ -651,6 +676,9 @@ def _scene_prompt_system(image_cfg: dict) -> str:
         "Follow the visual style and character description exactly; never contradict them. "
         "If the character is described as a simplified or non-realistic figure, do not add age, "
         "hair, beard, facial features or realistic clothing. "
+        "WARDROBE LOCK: the protagonist's exact outfit is fixed by the character description. "
+        "Never change the shirt colour, sleeves, trousers, shoes or accessories between scenes, "
+        "even for a different day, night, office or home scene. "
         "COMPOSITION RULE: one visible face per image. If the narration includes two characters, "
         "show the lead in focus and the second character only from behind, over the shoulder, "
         "as a silhouette, hands, or out of frame. Never ask for two faces in one prompt. "
@@ -668,6 +696,8 @@ def generate_scenes(pid: str, state: dict, job: Job, *, target_words: int = 24, 
     job.log(f"{len(chunks)} narration chunks")
 
     image_cfg = state.get("settings", {}).get("image", {})
+    scene_llm = _llm_for_step(state, "scenes")
+    job.log(f"Scene model: {scene_llm['llm'].get('provider')} / {scene_llm['llm'].get('model')}")
     style_prefix = str(image_cfg.get("style_prefix", "")).strip()
     character = str(image_cfg.get("character", "")).strip()
     cast = image_cfg.get("cast") or {}
@@ -704,7 +734,7 @@ Narration chunks:
 """.strip()
         try:
             raw = providers.chat(
-                state["settings"],
+                scene_llm,
                 [{"role": "system", "content": system}, {"role": "user", "content": user}],
                 num_predict=4096,
             )
@@ -731,7 +761,7 @@ Narration chunks:
             } for _ in batch]
 
         repaired = _repair_image_prompts(
-            state["settings"], [item.get("image_prompt", "") for item in items], job
+            _llm_for_step(state, "prompts"), [item.get("image_prompt", "") for item in items], job
         )
         for item, prompt in zip(items, repaired):
             item["image_prompt"] = prompt
@@ -816,7 +846,7 @@ Return only this JSON object:
 }}
 """.strip()
     raw = providers.chat(
-        state["settings"],
+        _llm_for_step(state, "prompts"),
         [{"role": "system", "content": system}, {"role": "user", "content": user}],
         num_predict=800,
     )
@@ -904,7 +934,7 @@ Narration chunks:
 """.strip()
         try:
             raw = providers.chat(
-                state["settings"],
+                _llm_for_step(state, "prompts"),
                 [{"role": "system", "content": system}, {"role": "user", "content": user}],
                 num_predict=min(4096, 240 + 260 * len(batch)),
             )
@@ -1045,6 +1075,8 @@ Rules:
 - Remove details that conflict with the style or character.
 - If the character is described as a simplified or non-realistic figure, do not add age, hair,
   beard, facial features or realistic clothing.
+- WARDROBE LOCK: keep the exact same clothing, colours, sleeves, trousers and accessories in
+  every scene, even for a different day, night, office or home scene.
 - COMPOSITION RULE: one visible face per image. If the narration includes two characters,
   show the lead in focus and the second character only from behind, over the shoulder,
   as hands/silhouette, or out of frame. Never ask for two faces in one prompt.
@@ -1056,7 +1088,7 @@ Scenes:
 {chr(10).join(lines)}
 """.strip()
     raw = providers.chat(
-        state["settings"],
+        _llm_for_step(state, "prompts"),
         [{"role": "system", "content": RESTYLE_SYSTEM}, {"role": "user", "content": user}],
         temperature=0.4,
         num_predict=max(2000, len(scenes) * 160),
@@ -1382,6 +1414,7 @@ def start_production(
     *,
     stages: list[str] | None = None,
     subtitles: bool | None = None,
+    force: bool = False,
 ) -> dict:
     stages = stages or ["images", "music", "tts", "assemble"]
     subtitles = bool(state["settings"].get("subtitles", True) if subtitles is None else subtitles)
@@ -1416,17 +1449,23 @@ def start_production(
                 def image_line(line: str) -> None:
                     _line_progress(job, line, r"sdxl|zimage|ipadapter|faceid", base, span)
 
-                _run_script(pid, state, "images.py", ["--engine", engine], job, on_line=image_line)
+                image_args = ["--engine", engine]
+                if force:
+                    image_args.append("--force")
+                _run_script(pid, state, "images.py", image_args, job, on_line=image_line)
             elif stage_name == "music":
                 job.set_progress(base, "Generating music bed")
                 music = settings.get("music", {})
-                if not (paths["audio"] / "music.mp3").exists():
-                    _run_script(pid, state, "music.py", [
+                if force or not (paths["audio"] / "music.mp3").exists():
+                    music_args = [
                         "--duration", str(music.get("duration", 300)),
                         "--prompt", str(music.get("prompt", "")),
                         "--bpm", str(music.get("bpm", 78)),
                         "--key", str(music.get("key", "C minor")),
-                    ], job)
+                    ]
+                    if force:
+                        music_args.append("--force")
+                    _run_script(pid, state, "music.py", music_args, job)
                 else:
                     job.log("music.mp3 already exists; skipping")
             elif stage_name == "tts":
@@ -1435,7 +1474,8 @@ def start_production(
                 def tts_line(line: str) -> None:
                     _line_progress(job, line, "tts", base, span)
 
-                _run_script(pid, state, "tts.py", [], job, python=_tts_py(), on_line=tts_line)
+                tts_args = ["--force"] if force else []
+                _run_script(pid, state, "tts.py", tts_args, job, python=_tts_py(), on_line=tts_line)
             elif stage_name == "assemble":
                 job.set_progress(base, "Assembling final video")
                 args = ["--out-name", "final.mp4"]
@@ -1539,6 +1579,8 @@ def generate_publish_kit(pid: str, state: dict, job: Job) -> dict:
         if pov_mode else ""
     )
     job.set_progress(10, "Writing titles and description")
+    publish_llm = _llm_for_step(state, "publish")
+    job.log(f"Publish model: {publish_llm['llm'].get('provider')} / {publish_llm['llm'].get('model')}")
     prompt = f"""
 Channel name: {pub.get('channel_name', '')}
 Channel tagline: {pub.get('channel_tagline', '')}
@@ -1575,7 +1617,7 @@ Return only this JSON object:
 }}
 """.strip()
     raw = providers.chat(
-        state["settings"],
+        publish_llm,
         [{"role": "system", "content": PUBLISH_SYSTEM}, {"role": "user", "content": prompt}],
         temperature=0.75,
         num_predict=3200,

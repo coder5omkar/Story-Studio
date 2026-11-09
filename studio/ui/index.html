@@ -325,6 +325,7 @@
           <label>Target words / scene <input id="sceneTargetWords" type="number" min="8" max="80" value="24"></label>
           <label>Batch size <input id="sceneBatch" type="number" min="1" max="30" value="12"></label>
           <button id="generateScenes" class="btn primary">Generate scene plan</button>
+          <button id="regenerateScenePlan" class="btn ghost" title="Replace the entire scene plan with a newly generated one">Regenerate scene plan</button>
           <span id="sceneGenHint" class="hint"></span>
         </div>
       </div>
@@ -415,7 +416,10 @@
     <section id="page-production" class="page">
       <div class="page-head">
         <div><div class="eyebrow">STAGE 04</div><h2>Production</h2><p class="sub">Batch generation is resumable: existing images and voice clips are skipped. Retry individual scenes without redoing the whole run.</p></div>
-        <div class="page-actions"><button id="startProduction" class="btn primary">Start batch production</button></div>
+        <div class="page-actions">
+          <button id="regenerateProduction" class="btn danger ghost" title="Re-render every image, voice clip, music bed and the final video">Regenerate all</button>
+          <button id="startProduction" class="btn primary">Start batch production</button>
+        </div>
       </div>
 
       <div class="card slim">
@@ -538,6 +542,7 @@
       <div class="page-head">
         <div><div class="eyebrow">STAGE 06</div><h2>Publish kit</h2><p class="sub">Generate a ready-to-paste YouTube title, description, tags and thumbnail from the approved story.</p></div>
         <div class="page-actions">
+          <span id="publishModel" class="hint mono"></span>
           <button id="generatePublish" class="btn primary">Generate publish kit</button>
           <button id="savePublish" class="btn">Save edits</button>
         </div>
@@ -619,6 +624,55 @@
         </div>
 
         <div class="card">
+          <h3>Models by step</h3>
+          <p class="hint">Choose the text model used at each stage. Leave a model blank to fall back to the default language model above.</p>
+          <div class="row wrap align-end">
+            <label>Story provider
+              <select id="stepStoryProvider">
+                <option value="ollama">Local Ollama</option>
+                <option value="opencode-go">OpenCode Go</option>
+                <option value="opencode">OpenCode pay-as-you-go</option>
+                <option value="openai">Other OpenAI-compatible</option>
+              </select>
+            </label>
+            <label>Story model <input id="stepStoryModel" type="text" placeholder="claude-haiku-5-5"></label>
+          </div>
+          <div class="row wrap align-end">
+            <label>Scene plan provider
+              <select id="stepScenesProvider">
+                <option value="ollama">Local Ollama</option>
+                <option value="opencode-go">OpenCode Go</option>
+                <option value="opencode">OpenCode pay-as-you-go</option>
+                <option value="openai">Other OpenAI-compatible</option>
+              </select>
+            </label>
+            <label>Scene plan model <input id="stepScenesModel" type="text" placeholder="claude-haiku-5-5"></label>
+          </div>
+          <div class="row wrap align-end">
+            <label>Prompt writer provider
+              <select id="stepPromptsProvider">
+                <option value="ollama">Local Ollama</option>
+                <option value="opencode-go">OpenCode Go</option>
+                <option value="opencode">OpenCode pay-as-you-go</option>
+                <option value="openai">Other OpenAI-compatible</option>
+              </select>
+            </label>
+            <label>Prompt writer model <input id="stepPromptsModel" type="text" placeholder="claude-haiku-5-5"></label>
+          </div>
+          <div class="row wrap align-end">
+            <label>Publish kit provider
+              <select id="stepPublishProvider">
+                <option value="ollama">Local Ollama</option>
+                <option value="opencode-go">OpenCode Go</option>
+                <option value="opencode">OpenCode pay-as-you-go</option>
+                <option value="openai">Other OpenAI-compatible</option>
+              </select>
+            </label>
+            <label>Publish kit model <input id="stepPublishModel" type="text" placeholder="claude-haiku-5-5"></label>
+          </div>
+        </div>
+
+        <div class="card">
           <h3>Visuals</h3>
           <label>ComfyUI URL <input id="setComfyUrl" type="text"></label>
           <label>Image engine <select id="setImageEngine"><option value="sdxl">SDXL</option><option value="faceid">SDXL + FaceID</option><option value="ipadapter">SDXL + IPAdapter</option><option value="zimage">Z-Image Turbo (best for stick-figure style)</option></select></label>
@@ -644,6 +698,7 @@
           </details>
           <label>Style prefix <textarea id="setStylePrefix" rows="4"></textarea></label>
           <label>Recurring character <textarea id="setCharacter" rows="3"></textarea></label>
+          <p class="hint">Include the exact outfit here. The prompt writer locks this clothing across every scene.</p>
           <label>Negative prompt <textarea id="setNegativePrompt" rows="3"></textarea></label>
           <p class="hint">Each preset sets a recommended engine, style, character and negative prompt. Save settings, use <b>Restyle for current style</b> on the scene plan, then regenerate images.</p>
           <div class="row wrap">

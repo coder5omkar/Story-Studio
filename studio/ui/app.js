@@ -1191,7 +1191,8 @@ function renderStory() {
   const povMode = !!S.data.state.settings?.publish?.pov;
   $("adaptCard").style.display = povMode ? "" : "none";
 
-  if (document.activeElement !== $("storyModel")) $("storyModel").value = S.data.state.settings.llm.model || "";
+  const storySelection = stepModel("story");
+  if (document.activeElement !== $("storyModel")) $("storyModel").value = storySelection.model || "";
   if (!S.topicDirty && document.activeElement !== $("storyTopic")) {
     $("storyTopic").value = S.data.state.settings.story_topic || "";
   }
@@ -1200,7 +1201,7 @@ function renderStory() {
   }
   if (document.activeElement !== $("storyMinutes")) $("storyMinutes").value = S.data.state.settings.story_minutes || 5;
   if (document.activeElement !== $("storyChapters")) $("storyChapters").value = S.data.state.settings.story_chapters || 5;
-  const provider = S.data.state.settings.llm.provider || "ollama";
+  const provider = storySelection.provider || "ollama";
   if (document.activeElement !== $("llmProvider")) $("llmProvider").value = provider;
   const temp = Number(S.data.state.settings.llm.temperature ?? 0.85);
   if (document.activeElement !== $("storyTemp")) {
@@ -1395,7 +1396,7 @@ function collectScenes() {
 
 async function generateScenes() {
   if (!S.data.story) return toast("Generate or write the story first", "error");
-  const provider = $("llmProvider").value;
+  const model = stepModel("scenes");
   S.sceneDirty = false;
   try {
     const res = await api(`/api/projects/${S.pid}/scenes/generate`, {
@@ -1403,9 +1404,9 @@ async function generateScenes() {
       body: {
         target_words: Number($("sceneTargetWords").value || 24),
         batch_size: Number($("sceneBatch").value || 12),
-        provider,
-        model: $("storyModel").value.trim(),
-        api_base: providerBase(provider),
+        provider: model.provider,
+        model: model.model,
+        api_base: providerBase(model.provider),
       },
     });
     startJob(res);
@@ -1415,14 +1416,14 @@ async function generateScenes() {
 
 async function repairPrompts() {
   if (!S.data.scenes?.length) return toast("Generate the scene plan first", "error");
-  const provider = $("llmProvider").value;
+  const model = stepModel("prompts");
   try {
     const res = await api(`/api/projects/${S.pid}/scenes/repair-prompts`, {
       method: "POST",
       body: {
-        provider,
-        model: $("storyModel").value.trim(),
-        api_base: providerBase(provider),
+        provider: model.provider,
+        model: model.model,
+        api_base: providerBase(model.provider),
       },
     });
     startJob(res);
@@ -1432,14 +1433,14 @@ async function repairPrompts() {
 
 async function restylePrompts() {
   if (!S.data.scenes?.length) return toast("Generate the scene plan first", "error");
-  const provider = $("llmProvider").value;
+  const model = stepModel("prompts");
   try {
     const res = await api(`/api/projects/${S.pid}/scenes/restyle-prompts`, {
       method: "POST",
       body: {
-        provider,
-        model: $("storyModel").value.trim(),
-        api_base: providerBase(provider),
+        provider: model.provider,
+        model: model.model,
+        api_base: providerBase(model.provider),
       },
     });
     startJob(res);
@@ -1449,10 +1450,11 @@ async function restylePrompts() {
 
 async function regenerateAllPrompts() {
   if (!S.data.scenes?.length) return toast("Generate the scene plan first", "error");
-  const provider = $("llmProvider").value;
-  const model = $("storyModel").value.trim();
+  const selected = stepModel("prompts");
+  const provider = selected.provider;
+  const model = selected.model;
   if (provider !== "ollama" && !model) {
-    return toast("Choose a prompt model first", "error");
+    return toast("Choose a prompt writer model in Settings", "error");
   }
   if (S.sceneDirty && !window.confirm("Unsaved scene edits will be replaced. Continue?")) {
     return;
@@ -1471,6 +1473,15 @@ async function regenerateAllPrompts() {
     startJob(res);
     toast(`Regenerating ${count} image prompts with ${label}`);
   } catch (e) { toast(e.message, "error"); }
+}
+
+async function regenerateScenePlan() {
+  if (!S.data.story) return toast("Generate or write the story first", "error");
+  const count = S.data.scenes?.length || 0;
+  if (count && !window.confirm(`Replace the current ${count}-scene plan with a newly generated one? Existing images and voice clips stay on disk but the plan will be new.`)) {
+    return;
+  }
+  await generateScenes();
 }
 
 async function saveScenes() {
@@ -1854,16 +1865,24 @@ function renderJobPanel() {
 // Scene review
 // ---------------------------------------------------------------------------
 
-function promptModelLabel() {
-  const provider = $("llmProvider")?.value || S.data?.state?.settings?.llm?.provider || "";
-  const model = ($("storyModel")?.value || "").trim() || S.data?.state?.settings?.llm?.model || "";
-  return [provider, model].filter(Boolean).join(" / ") || "not set";
+function stepModel(step) {
+  const settings = S.data?.state?.settings || {};
+  const cfg = (settings.llm_steps || {})[step] || {};
+  return {
+    provider: cfg.provider || settings.llm?.provider || "ollama",
+    model: cfg.model || settings.llm?.model || "",
+  };
+}
+
+function stepModelLabel(step) {
+  const model = stepModel(step);
+  return [model.provider, model.model].filter(Boolean).join(" / ") || "not set";
 }
 
 function refreshPromptModelLabels() {
-  const label = `Prompt model: ${promptModelLabel()}`;
-  if ($("scenePromptModel")) $("scenePromptModel").textContent = label;
-  if ($("reviewPromptModel")) $("reviewPromptModel").textContent = label;
+  if ($("scenePromptModel")) $("scenePromptModel").textContent = `Scene model: ${stepModelLabel("scenes")}`;
+  if ($("reviewPromptModel")) $("reviewPromptModel").textContent = `Prompt model: ${stepModelLabel("prompts")}`;
+  if ($("publishModel")) $("publishModel").textContent = `Publish model: ${stepModelLabel("publish")}`;
 }
 
 function currentReviewScene() {
@@ -2108,10 +2127,11 @@ async function regenerateReview(kind) {
 async function regenerateReviewPrompt() {
   const scene = currentReviewScene();
   if (!scene) return toast("No scene selected", "error");
-  const provider = $("llmProvider").value;
-  const model = $("storyModel").value.trim();
+  const selected = stepModel("prompts");
+  const provider = selected.provider;
+  const model = selected.model;
   if (provider !== "ollama" && !model) {
-    return toast("Choose a prompt model first", "error");
+    return toast("Choose a prompt writer model in Settings", "error");
   }
   if (S.reviewDirty) {
     if (!window.confirm("Save the current narration and replace this image prompt?")) return;
@@ -2127,6 +2147,25 @@ async function regenerateReviewPrompt() {
   } catch (e) {
     toast(e.message, "error");
   }
+}
+
+async function regenerateAllProduction() {
+  if (!S.data.gates?.ok) return toast("Approve all production gates first", "error");
+  if (!window.confirm("Re-render every image, voice clip, music bed and the final video? Existing assets will be replaced.")) {
+    return;
+  }
+  try {
+    const res = await api(`/api/projects/${S.pid}/production/start`, {
+      method: "POST",
+      body: {
+        stages: ["images", "music", "tts", "assemble"],
+        subtitles: $("prodSubtitles").checked,
+        force: true,
+      },
+    });
+    startJob(res);
+    toast("Full regeneration started");
+  } catch (e) { toast(e.message, "error"); }
 }
 
 async function startProduction() {
@@ -2237,6 +2276,7 @@ async function approveFinal() {
 // ---------------------------------------------------------------------------
 
 function renderPublish() {
+  $("publishModel").textContent = `Publish model: ${stepModelLabel("publish")}`;
   const p = S.data.publish || {};
   const status = p.status || "empty";
   $("publishStatus").textContent = statusText(status);
@@ -2304,14 +2344,14 @@ function markPublishTitle(title) {
 
 async function generatePublish() {
   if (!S.data?.story) return toast("Generate the story first", "error");
-  const provider = $("llmProvider").value;
+  const model = stepModel("publish");
   try {
     const res = await api(`/api/projects/${S.pid}/publish/generate`, {
       method: "POST",
       body: {
-        provider,
-        model: $("storyModel").value.trim(),
-        api_base: providerBase(provider),
+        provider: model.provider,
+        model: model.model,
+        api_base: providerBase(model.provider),
       },
     });
     startJob(res);
@@ -2384,6 +2424,12 @@ function renderSettings() {
   const s = S.data.state.settings;
   $("setLlmProvider").value = s.llm.provider || "ollama";
   $("setLlmModel").value = s.llm.model || "";
+  const steps = s.llm_steps || {};
+  [["story", "stepStory"], ["scenes", "stepScenes"], ["prompts", "stepPrompts"], ["publish", "stepPublish"]].forEach(([key, prefix]) => {
+    const cfg = steps[key] || {};
+    $(`${prefix}Provider`).value = cfg.provider || s.llm.provider || "ollama";
+    $(`${prefix}Model`).value = cfg.model || s.llm.model || "";
+  });
   $("setOllamaUrl").value = s.llm.ollama_url || s.ollama_url || "";
   $("setApiBase").value = s.llm.api_base || "https://opencode.ai/inference/go/openai/v1";
   $("setApiKey").value = "";
@@ -2431,6 +2477,12 @@ function collectSettings() {
       api_base: $("setApiBase").value.trim(),
       temperature: old.llm.temperature ?? 0.85,
       num_predict: old.llm.num_predict ?? 4096,
+    },
+    llm_steps: {
+      story: { provider: $("stepStoryProvider").value, model: $("stepStoryModel").value.trim() },
+      scenes: { provider: $("stepScenesProvider").value, model: $("stepScenesModel").value.trim() },
+      prompts: { provider: $("stepPromptsProvider").value, model: $("stepPromptsModel").value.trim() },
+      publish: { provider: $("stepPublishProvider").value, model: $("stepPublishModel").value.trim() },
     },
     image: {
       engine: $("setImageEngine").value,
@@ -2731,13 +2783,19 @@ function bind() {
     $("storyModel").placeholder = provider === "ollama"
       ? "aya-expanse:8b"
       : (PROVIDER_MODEL_HINTS[provider] || "model ID");
+    $("stepStoryProvider").value = provider;
+    $("stepStoryModel").value = $("storyModel").value.trim();
     refreshPromptModelLabels();
     loadModels();
   });
-  $("storyModel").addEventListener("input", refreshPromptModelLabels);
+  $("storyModel").addEventListener("input", () => {
+    $("stepStoryModel").value = $("storyModel").value.trim();
+    refreshPromptModelLabels();
+  });
   $("refreshModels").addEventListener("click", loadModels);
 
   $("generateScenes").addEventListener("click", generateScenes);
+  $("regenerateScenePlan").addEventListener("click", regenerateScenePlan);
   $("repairPrompts").addEventListener("click", repairPrompts);
   $("restylePrompts").addEventListener("click", restylePrompts);
   $("regeneratePrompts").addEventListener("click", regenerateAllPrompts);
@@ -2784,6 +2842,7 @@ function bind() {
   $("rejectClip").addEventListener("click", () => rejectSample("clip"));
 
   $("startProduction").addEventListener("click", startProduction);
+  $("regenerateProduction").addEventListener("click", regenerateAllProduction);
   $("jobStop").addEventListener("click", cancelJob);
   $("prodStop").addEventListener("click", cancelJob);
   $("publishStop").addEventListener("click", cancelJob);

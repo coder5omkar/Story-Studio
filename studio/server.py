@@ -195,7 +195,7 @@ def _deep_merge(base: dict, patch: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _apply_llm_payload(state: dict, payload: dict) -> None:
+def _apply_llm_payload(state: dict, payload: dict, step: str | None = None) -> None:
     """Persist model/provider choices made on the Story or Scenes page."""
     llm = state["settings"].setdefault("llm", {})
     if payload.get("provider"):
@@ -206,6 +206,11 @@ def _apply_llm_payload(state: dict, payload: dict) -> None:
         llm["api_base"] = providers.normalize_api_base(str(payload["api_base"]))
     if payload.get("temperature") is not None:
         llm["temperature"] = float(payload["temperature"])
+    if step:
+        step_cfg = state["settings"].setdefault("llm_steps", {}).setdefault(step, {})
+        for key in ("provider", "model", "api_base", "temperature"):
+            if key in llm:
+                step_cfg[key] = llm[key]
 
 
 # ---------------------------------------------------------------------------
@@ -593,7 +598,7 @@ def generate_story(pid: str, payload: dict = Body(...)) -> dict:
     instructions = str(payload.get("instructions", "")).strip()
     if not topic:
         raise HTTPException(400, "Topic is required")
-    _apply_llm_payload(state, payload)
+    _apply_llm_payload(state, payload, step="story")
     state["settings"]["story_topic"] = topic
     state["settings"]["story_minutes"] = minutes
     state["settings"]["story_chapters"] = chapters
@@ -616,7 +621,7 @@ def adapt_story(pid: str, payload: dict = Body(...)) -> dict:
         raise HTTPException(400, "The source story is too short to adapt")
     minutes = float(payload.get("minutes", 25) or 25)
     chapters = int(payload.get("chapters", 8) or 8)
-    _apply_llm_payload(state, payload)
+    _apply_llm_payload(state, payload, step="story")
     state["settings"]["story_topic"] = "POV Finance adaptation"
     state["settings"]["story_minutes"] = minutes
     state["settings"]["story_chapters"] = chapters
@@ -673,7 +678,7 @@ def generate_scenes(pid: str, payload: dict = Body(...)) -> dict:
     state = _project(pid)
     if not _story(pid):
         raise HTTPException(400, "Generate or write the story first")
-    _apply_llm_payload(state, payload)
+    _apply_llm_payload(state, payload, step="scenes")
     store.write_project_config(pid, state)
     store.save_state(pid, state)
     target_words = int(payload.get("target_words", 24) or 24)
@@ -732,7 +737,7 @@ def regenerate_scene_prompt(pid: str, scene_id: int, payload: dict = Body(defaul
     state = _project(pid)
     if not _scenes(pid):
         raise HTTPException(400, "Generate the scene plan first")
-    _apply_llm_payload(state, payload)
+    _apply_llm_payload(state, payload, step="prompts")
     store.write_project_config(pid, state)
     store.save_state(pid, state)
     return _start(pid, "scene_prompt", lambda job: ops.regenerate_scene_prompt(
@@ -745,7 +750,7 @@ def regenerate_all_prompts(pid: str, payload: dict = Body(default={})) -> dict:
     state = _project(pid)
     if not _scenes(pid):
         raise HTTPException(400, "Generate the scene plan first")
-    _apply_llm_payload(state, payload)
+    _apply_llm_payload(state, payload, step="prompts")
     store.write_project_config(pid, state)
     store.save_state(pid, state)
     return _start(pid, "scene_prompts", lambda job: ops.regenerate_all_prompts(
@@ -756,7 +761,7 @@ def regenerate_all_prompts(pid: str, payload: dict = Body(default={})) -> dict:
 @app.post("/api/projects/{pid}/scenes/repair-prompts")
 def repair_scene_prompts(pid: str, payload: dict = Body(default={})) -> dict:
     state = _project(pid)
-    _apply_llm_payload(state, payload)
+    _apply_llm_payload(state, payload, step="prompts")
     if not _scenes(pid):
         raise HTTPException(400, "Generate the scene plan first")
     store.write_project_config(pid, state)
@@ -769,7 +774,7 @@ def repair_scene_prompts(pid: str, payload: dict = Body(default={})) -> dict:
 @app.post("/api/projects/{pid}/scenes/restyle-prompts")
 def restyle_scene_prompts(pid: str, payload: dict = Body(default={})) -> dict:
     state = _project(pid)
-    _apply_llm_payload(state, payload)
+    _apply_llm_payload(state, payload, step="prompts")
     if not _scenes(pid):
         raise HTTPException(400, "Generate the scene plan first")
     store.write_project_config(pid, state)
@@ -880,6 +885,7 @@ def start_production(pid: str, payload: dict = Body(default={})) -> dict:
     state = _project(pid)
     stages = payload.get("stages") or ["images", "music", "tts", "assemble"]
     subtitles = bool(payload.get("subtitles", state["settings"].get("subtitles", True)))
+    force = bool(payload.get("force", False))
     state["settings"]["subtitles"] = subtitles
     music_enabled = bool(state["settings"].get("music", {}).get("enabled", True))
     if not music_enabled:
@@ -891,7 +897,7 @@ def start_production(pid: str, payload: dict = Body(default={})) -> dict:
     store.write_project_config(pid, state)
     store.save_state(pid, state)
     return _start(pid, "production", lambda job: ops.start_production(
-        pid, state, job, stages=list(stages), subtitles=subtitles,
+        pid, state, job, stages=list(stages), subtitles=subtitles, force=force,
     ))
 
 
@@ -956,7 +962,7 @@ def generate_publish(pid: str, payload: dict = Body(default={})) -> dict:
     state = _project(pid)
     if not _story(pid):
         raise HTTPException(400, "Generate or write the story first")
-    _apply_llm_payload(state, payload)
+    _apply_llm_payload(state, payload, step="publish")
     store.write_project_config(pid, state)
     store.save_state(pid, state)
     return _start(pid, "publish_kit", lambda job: ops.generate_publish_kit(pid, state, job))

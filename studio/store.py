@@ -80,6 +80,7 @@ def default_settings() -> dict:
             "num_predict": 4096,
             "session_id": "ses_" + uuid.uuid4().hex,
         },
+        "llm_steps": {},
         "image": {
             "engine": "zimage",
             **{k: v for k, v in cfg.get("image", {}).items()},
