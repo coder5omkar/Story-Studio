@@ -727,6 +727,32 @@ def request_scene_changes(pid: str, payload: dict = Body(default={})) -> dict:
     return {"ok": True}
 
 
+@app.post("/api/projects/{pid}/scenes/{scene_id}/regenerate-prompt")
+def regenerate_scene_prompt(pid: str, scene_id: int, payload: dict = Body(default={})) -> dict:
+    state = _project(pid)
+    if not _scenes(pid):
+        raise HTTPException(400, "Generate the scene plan first")
+    _apply_llm_payload(state, payload)
+    store.write_project_config(pid, state)
+    store.save_state(pid, state)
+    return _start(pid, "scene_prompt", lambda job: ops.regenerate_scene_prompt(
+        pid, state, job, scene_id=scene_id,
+    ))
+
+
+@app.post("/api/projects/{pid}/scenes/regenerate-prompts")
+def regenerate_all_prompts(pid: str, payload: dict = Body(default={})) -> dict:
+    state = _project(pid)
+    if not _scenes(pid):
+        raise HTTPException(400, "Generate the scene plan first")
+    _apply_llm_payload(state, payload)
+    store.write_project_config(pid, state)
+    store.save_state(pid, state)
+    return _start(pid, "scene_prompts", lambda job: ops.regenerate_all_prompts(
+        pid, state, job,
+    ))
+
+
 @app.post("/api/projects/{pid}/scenes/repair-prompts")
 def repair_scene_prompts(pid: str, payload: dict = Body(default={})) -> dict:
     state = _project(pid)

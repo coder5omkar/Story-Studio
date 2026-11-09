@@ -1335,6 +1335,7 @@ function renderScenes() {
     ["Voice clips", status.filter((s) => s.audio).length],
   ].map(([label, value]) => `<div class="stat"><div class="stat-value">${value}</div><div class="stat-label">${label}</div></div>`).join("");
   renderChecks("sceneChecks", S.data.scenes_validation);
+  refreshPromptModelLabels();
   renderSceneList();
 }
 
@@ -1443,6 +1444,32 @@ async function restylePrompts() {
     });
     startJob(res);
     toast("Rewriting scene prompts for the current style");
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function regenerateAllPrompts() {
+  if (!S.data.scenes?.length) return toast("Generate the scene plan first", "error");
+  const provider = $("llmProvider").value;
+  const model = $("storyModel").value.trim();
+  if (provider !== "ollama" && !model) {
+    return toast("Choose a prompt model first", "error");
+  }
+  if (S.sceneDirty && !window.confirm("Unsaved scene edits will be replaced. Continue?")) {
+    return;
+  }
+  const count = S.data.scenes.length;
+  const label = [provider, model].filter(Boolean).join(" / ") || "project model";
+  if (!window.confirm(`Rewrite all ${count} image prompts from their narration using ${label}?`)) {
+    return;
+  }
+  try {
+    const res = await api(`/api/projects/${S.pid}/scenes/regenerate-prompts`, {
+      method: "POST",
+      body: { provider, model, api_base: providerBase(provider) },
+    });
+    S.sceneDirty = false;
+    startJob(res);
+    toast(`Regenerating ${count} image prompts with ${label}`);
   } catch (e) { toast(e.message, "error"); }
 }
 
@@ -1827,6 +1854,18 @@ function renderJobPanel() {
 // Scene review
 // ---------------------------------------------------------------------------
 
+function promptModelLabel() {
+  const provider = $("llmProvider")?.value || S.data?.state?.settings?.llm?.provider || "";
+  const model = ($("storyModel")?.value || "").trim() || S.data?.state?.settings?.llm?.model || "";
+  return [provider, model].filter(Boolean).join(" / ") || "not set";
+}
+
+function refreshPromptModelLabels() {
+  const label = `Prompt model: ${promptModelLabel()}`;
+  if ($("scenePromptModel")) $("scenePromptModel").textContent = label;
+  if ($("reviewPromptModel")) $("reviewPromptModel").textContent = label;
+}
+
 function currentReviewScene() {
   const scenes = S.data?.scenes || [];
   if (!scenes.length) return null;
@@ -1856,11 +1895,12 @@ function renderSceneReview() {
     $("reviewAudioEmpty").classList.remove("hidden");
     $("reviewNarration").value = "";
     $("reviewPrompt").value = "";
+    refreshPromptModelLabels();
     $("reviewDirty").classList.add("hidden");
     $("reviewPlanState").textContent = "Generate a scene plan first.";
     $("reviewPrev").disabled = $("reviewNext").disabled = true;
     $("reviewSave").disabled = $("reviewApprove").disabled = true;
-    $("reviewRegenVoice").disabled = $("reviewRegenImage").disabled = true;
+    $("reviewRegenPrompt").disabled = $("reviewRegenVoice").disabled = $("reviewRegenImage").disabled = true;
     $("reviewJump").value = 1;
     S.reviewRenderedScene = null;
     S.reviewDirty = false;
@@ -1876,6 +1916,7 @@ function renderSceneReview() {
     <span class="review-chip ${st.audio ? "on" : "off"}">${st.audio ? "voice ready" : "no voice"}</span>
     <span class="review-chip">${st.words || 0} words</span>
     ${st.duration ? `<span class="review-chip">${st.duration.toFixed(1)}s</span>` : ""}`;
+  refreshPromptModelLabels();
 
   const image = $("reviewImage");
   const imageLink = $("reviewImageLink");
@@ -1929,6 +1970,7 @@ function renderSceneReview() {
   $("reviewPrev").disabled = scenes[0].id === scene.id;
   $("reviewNext").disabled = scenes.at(-1).id === scene.id;
   $("reviewSave").disabled = busy;
+  $("reviewRegenPrompt").disabled = busy;
   $("reviewRegenVoice").disabled = busy;
   $("reviewRegenImage").disabled = busy;
   $("reviewApprove").disabled = busy || plan === "approved";
@@ -2058,6 +2100,30 @@ async function regenerateReview(kind) {
     toast(kind === "voice"
       ? `Voice regeneration started for scene ${scene.id}`
       : `New image variation started for scene ${scene.id}`);
+  } catch (e) {
+    toast(e.message, "error");
+  }
+}
+
+async function regenerateReviewPrompt() {
+  const scene = currentReviewScene();
+  if (!scene) return toast("No scene selected", "error");
+  const provider = $("llmProvider").value;
+  const model = $("storyModel").value.trim();
+  if (provider !== "ollama" && !model) {
+    return toast("Choose a prompt model first", "error");
+  }
+  if (S.reviewDirty) {
+    if (!window.confirm("Save the current narration and replace this image prompt?")) return;
+    if (!(await saveSceneReview({ silent: true }))) return;
+  }
+  try {
+    const res = await api(`/api/projects/${S.pid}/scenes/${scene.id}/regenerate-prompt`, {
+      method: "POST",
+      body: { provider, model, api_base: providerBase(provider) },
+    });
+    startJob(res);
+    toast(`Regenerating scene ${scene.id} prompt with ${provider} / ${model || "project model"}`);
   } catch (e) {
     toast(e.message, "error");
   }
@@ -2665,13 +2731,16 @@ function bind() {
     $("storyModel").placeholder = provider === "ollama"
       ? "aya-expanse:8b"
       : (PROVIDER_MODEL_HINTS[provider] || "model ID");
+    refreshPromptModelLabels();
     loadModels();
   });
+  $("storyModel").addEventListener("input", refreshPromptModelLabels);
   $("refreshModels").addEventListener("click", loadModels);
 
   $("generateScenes").addEventListener("click", generateScenes);
   $("repairPrompts").addEventListener("click", repairPrompts);
   $("restylePrompts").addEventListener("click", restylePrompts);
+  $("regeneratePrompts").addEventListener("click", regenerateAllPrompts);
   $("saveScenes").addEventListener("click", saveScenes);
   $("approveScenes").addEventListener("click", approveScenes);
   $("addScene").addEventListener("click", addScene);
@@ -2734,6 +2803,7 @@ function bind() {
   $("reviewApprove").addEventListener("click", approveScenePlan);
   $("reviewRegenVoice").addEventListener("click", () => regenerateReview("voice"));
   $("reviewRegenImage").addEventListener("click", () => regenerateReview("image"));
+  $("reviewRegenPrompt").addEventListener("click", regenerateReviewPrompt);
   $("reviewNarration").addEventListener("input", updateReviewDirty);
   $("reviewPrompt").addEventListener("input", updateReviewDirty);
   $("reviewAudio").addEventListener("ended", () => {

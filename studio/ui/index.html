@@ -310,8 +310,10 @@
       <div class="page-head">
         <div><div class="eyebrow">STAGE 02</div><h2>Scene plan</h2><p class="sub">One narration chunk + one English image prompt per scene. Review pacing and prompts before generating assets.</p></div>
         <div class="page-actions">
+          <span id="scenePromptModel" class="hint mono"></span>
           <button id="repairPrompts" class="btn ghost" title="Translate non-English or too-short image prompts">Fix English prompts</button>
           <button id="restylePrompts" class="btn ghost" title="Rewrite all scene prompts for the selected visual style">Restyle for current style</button>
+          <button id="regeneratePrompts" class="btn ghost" title="Rewrite every image prompt from its narration with the current prompt model">Regenerate prompts</button>
           <button id="addScene" class="btn ghost">+ Add scene</button>
           <button id="saveScenes" class="btn">Save plan</button>
           <button id="approveScenes" class="btn primary">Approve plan</button>
@@ -463,6 +465,10 @@
             <label>English image prompt
               <textarea id="reviewPrompt" rows="3" placeholder="English image prompt..."></textarea>
             </label>
+            <div class="row wrap review-prompt-model">
+              <span class="hint">Prompt model:</span>
+              <span id="reviewPromptModel" class="mono muted"></span>
+            </div>
             <div class="review-actions">
               <div class="row wrap">
                 <button id="reviewSave" class="btn primary" type="button">Save scene</button>
@@ -470,6 +476,7 @@
                 <span id="reviewDirty" class="hint hidden">Unsaved changes</span>
               </div>
               <div class="row wrap review-regen">
+                <button id="reviewRegenPrompt" class="btn" type="button">Regenerate prompt</button>
                 <button id="reviewRegenVoice" class="btn" type="button">Regenerate voice</button>
                 <button id="reviewRegenImage" class="btn" type="button">Regenerate image</button>
                 <span class="hint">Each image retry is a new variation.</span>

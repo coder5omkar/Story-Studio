@@ -285,6 +285,10 @@ or `OPENAI_API_KEY`.
    - Generate narration chunks and English image prompts.
    - Use **Fix English prompts** for Hindi/short prompts.
    - Use **Restyle for current style** after changing the visual preset.
+   - Change the project LLM in Settings, then use **Regenerate prompts** to
+     rewrite every image prompt from its narration, or **Regenerate prompt**
+     in the Production scene review for one scene. The active prompt model is
+     shown on both pages.
    - Review and approve.
 3. **Sample studio**
    - **Voice:** audition Chatterbox with exaggeration/CFG/temperature. Click
@@ -402,7 +406,8 @@ The POV preset uses two local upgrades on top of SDXL:
 The LoRA files are local model weights and are not committed to the repository.
 Place `vector-cartoon-illustration.safetensors` in
 `ComfyUI/models/loras/`. The optional 4x upscaler
-`4x-UltraSharp.pth` belongs in `ComfyUI/models/upscale_models/`.
+`4x-UltraSharp.pth` is installed in `ComfyUI/models/upscale_models/` for future
+hero-image passes; the default pipeline uses the faster Lanczos 1920×1080 pass.
 
 ### Current limitations
 

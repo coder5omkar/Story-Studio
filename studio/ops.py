@@ -633,6 +633,32 @@ def repair_scene_prompts(pid: str, state: dict, job: Job) -> dict:
     return {"changed": changed, "validation": validation}
 
 
+def _scene_prompt_system(image_cfg: dict) -> str:
+    style_prefix = str(image_cfg.get("style_prefix", "")).strip()
+    character = str(image_cfg.get("character", "")).strip()
+    cast = image_cfg.get("cast") or {}
+    cast_lines = "\n".join(
+        f"- {name}: {description}" for name, description in cast.items()
+        if name and description
+    )
+    return (
+        "You are a storyboard artist for a Hindi story channel. "
+        f"Visual style: {style_prefix}. "
+        f"Character: {character}. "
+        f"Recurring cast:\n{cast_lines}\n"
+        "For each Hindi narration chunk, write one concrete English image prompt of 25-45 words. "
+        "Describe setting, action, emotion, camera framing and background. "
+        "Follow the visual style and character description exactly; never contradict them. "
+        "If the character is described as a simplified or non-realistic figure, do not add age, "
+        "hair, beard, facial features or realistic clothing. "
+        "COMPOSITION RULE: one visible face per image. If the narration includes two characters, "
+        "show the lead in focus and the second character only from behind, over the shoulder, "
+        "as a silhouette, hands, or out of frame. Never ask for two faces in one prompt. "
+        "English only: never use Devanagari or Hindi words in image_prompt. "
+        "No text in the image. Return only a JSON array."
+    )
+
+
 def generate_scenes(pid: str, state: dict, job: Job, *, target_words: int = 24, batch_size: int = 12) -> dict:
     paths = store.ensure_dirs(pid)
     story = paths["story"].read_text(encoding="utf-8")
@@ -650,22 +676,7 @@ def generate_scenes(pid: str, state: dict, job: Job, *, target_words: int = 24, 
         if name and description
     )
 
-    system = (
-        "You are a storyboard artist for a Hindi story channel. "
-        f"Visual style: {style_prefix}. "
-        f"Character: {character}. "
-        f"Recurring cast:\n{cast_lines}\n"
-        "For each Hindi narration chunk, write one concrete English image prompt of 25-45 words. "
-        "Describe setting, action, emotion, camera framing and background. "
-        "Follow the visual style and character description exactly; never contradict them. "
-        "If the character is described as a simplified or non-realistic figure, do not add age, "
-        "hair, beard, facial features or realistic clothing. "
-        "COMPOSITION RULE: one visible face per image. If the narration includes two characters, "
-        "show the lead in focus and the second character only from behind, over the shoulder, "
-        "as a silhouette, hands, or out of frame. Never ask for two faces in one prompt. "
-        "English only: never use Devanagari or Hindi words in image_prompt. "
-        "No text in the image. Return only a JSON array."
-    )
+    system = _scene_prompt_system(image_cfg)
     scenes: list[dict] = []
     for start in range(0, len(chunks), batch_size):
         job.check_cancelled()
@@ -749,6 +760,156 @@ Narration chunks:
     store.save_state(pid, state)
     job.set_progress(100, "Scene plan ready for review")
     return {"scenes": len(scenes), "validation": validation}
+
+
+def regenerate_scene_prompt(pid: str, state: dict, job: Job, *, scene_id: int) -> dict:
+    """Rewrite one scene's image prompt from its narration using the project LLM."""
+    paths = store.ensure_dirs(pid)
+    if not paths["scenes"].exists():
+        raise RuntimeError("Generate the scene plan first")
+    scenes = json.loads(paths["scenes"].read_text(encoding="utf-8"))
+    scene = next((s for s in scenes if int(s.get("id", -1)) == int(scene_id)), None)
+    if scene is None:
+        raise RuntimeError(f"Scene {scene_id} not found")
+
+    llm = state.get("settings", {}).get("llm", {})
+    model_label = f"{llm.get('provider', '')} / {llm.get('model', '')}".strip(" /")
+    job.log(f"Prompt model: {model_label}")
+    job.set_progress(10, f"Writing scene {scene_id} prompt with {model_label}")
+    image_cfg = state.get("settings", {}).get("image", {})
+    system = _scene_prompt_system(image_cfg)
+    user = f"""
+Rewrite the image prompt for this scene. Use only the narration below and the visual style
+and character instructions. Do not keep any metaphor or object from an older prompt unless
+the narration actually mentions it.
+
+Narration:
+{scene.get('narration', '')}
+
+Return only this JSON object:
+{{
+  "image_prompt": "concrete English visual description, 25-45 words",
+  "camera": "slow push in|slow pull back|slow pan left|slow pan right",
+  "mood": "one or two English words"
+}}
+""".strip()
+    raw = providers.chat(
+        state["settings"],
+        [{"role": "system", "content": system}, {"role": "user", "content": user}],
+        num_predict=800,
+    )
+    job.check_cancelled()
+    data = providers.extract_json(raw)
+    if isinstance(data, list):
+        data = data[0] if data else {}
+    if not isinstance(data, dict) or not str(data.get("image_prompt", "")).strip():
+        raise RuntimeError("The model did not return a usable image prompt")
+
+    scene["image_prompt"] = str(data["image_prompt"]).strip()
+    scene["camera"] = _normalize_camera(str(data.get("camera") or scene.get("camera") or "slow push in"))
+    scene["mood"] = str(data.get("mood") or scene.get("mood") or "emotional").strip()[:60]
+    job.set_progress(75, "Saving new prompt")
+    store.version_artifact(pid, state, "scenes", paths["scenes"])
+    paths["scenes"].write_text(json.dumps(scenes, ensure_ascii=False, indent=2), encoding="utf-8")
+    validation = qa.validate_scenes(scenes)
+    store.set_stage(
+        state, "scenes", "draft", approved=False,
+        notes=f"Scene {scene_id} prompt regenerated with {model_label}",
+        validation=validation,
+    )
+    store.invalidate(
+        state, ["samples.image", "samples.clip", "production", "final", "publish"],
+        f"scene {scene_id} prompt regenerated",
+    )
+    store.save_state(pid, state)
+    job.set_progress(100, f"Scene {scene_id} prompt ready")
+    return {"scene": scene, "validation": validation, "model": model_label}
+
+
+def regenerate_all_prompts(pid: str, state: dict, job: Job, *, batch_size: int = 10) -> dict:
+    """Rewrite every scene prompt from its narration using the project LLM."""
+    paths = store.ensure_dirs(pid)
+    if not paths["scenes"].exists():
+        raise RuntimeError("Generate the scene plan first")
+    scenes = json.loads(paths["scenes"].read_text(encoding="utf-8"))
+    if not scenes:
+        raise RuntimeError("Scene plan is empty")
+
+    llm = state.get("settings", {}).get("llm", {})
+    model_label = f"{llm.get('provider', '')} / {llm.get('model', '')}".strip(" /")
+    job.log(f"Prompt model: {model_label}")
+    image_cfg = state.get("settings", {}).get("image", {})
+    system = _scene_prompt_system(image_cfg)
+    total = len(scenes)
+    changed = 0
+
+    for start in range(0, total, batch_size):
+        job.check_cancelled()
+        batch = scenes[start:start + batch_size]
+        numbered = "\n".join(
+            f"{index + 1}. {scene.get('narration', '')}"
+            for index, scene in enumerate(batch)
+        )
+        user = f"""
+For each narration chunk below, rewrite the image prompt from scratch. Ignore any older
+prompt and describe only what the narration says. Keep the same visual style and character.
+
+Return a JSON array with exactly {len(batch)} objects:
+[
+  {{"image_prompt": "concrete English visual description, 25-45 words", "camera": "slow push in|slow pull back|slow pan left|slow pan right", "mood": "one or two English words"}}
+]
+
+Narration chunks:
+{numbered}
+""".strip()
+        try:
+            raw = providers.chat(
+                state["settings"],
+                [{"role": "system", "content": system}, {"role": "user", "content": user}],
+                num_predict=min(4096, 240 + 260 * len(batch)),
+            )
+            job.check_cancelled()
+            items = providers.extract_json(raw)
+            if not isinstance(items, list):
+                raise ValueError(f"expected JSON array, got {type(items).__name__}")
+            while len(items) < len(batch):
+                items.append({})
+            for scene, item in zip(batch, items):
+                if not isinstance(item, dict):
+                    continue
+                prompt = str(item.get("image_prompt") or "").strip()
+                if len(prompt) < 12:
+                    continue
+                scene["image_prompt"] = prompt
+                scene["camera"] = _normalize_camera(
+                    str(item.get("camera") or scene.get("camera") or "slow push in")
+                )
+                scene["mood"] = str(item.get("mood") or scene.get("mood") or "emotional").strip()[:60]
+                changed += 1
+        except JobCancelled:
+            raise
+        except Exception as exc:
+            job.log(f"Prompt batch {start // batch_size + 1} failed ({exc}); kept existing prompts")
+        done = min(total, start + len(batch))
+        job.set_progress(5 + 90 * done / total, f"Prompts: {done}/{total}")
+        job.log(f"Batch {start // batch_size + 1}: {done}/{total} prompts")
+
+    job.check_cancelled()
+    store.version_artifact(pid, state, "scenes", paths["scenes"])
+    paths["scenes"].write_text(json.dumps(scenes, ensure_ascii=False, indent=2), encoding="utf-8")
+    validation = qa.validate_scenes(scenes)
+    store.set_stage(
+        state, "scenes", "draft", approved=False,
+        notes=f"Regenerated {changed} prompts with {model_label}",
+        validation=validation,
+    )
+    store.invalidate(
+        state, ["samples.image", "samples.clip", "production", "final", "publish"],
+        "all image prompts regenerated",
+    )
+    store.save_state(pid, state)
+    job.set_progress(100, f"Regenerated {changed} prompts")
+    return {"changed": changed, "validation": validation, "model": model_label}
 
 
 def save_scenes(pid: str, state: dict, scenes: list) -> dict:
