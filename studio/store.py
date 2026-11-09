@@ -88,11 +88,19 @@ def default_settings() -> dict:
         "tts": {**cfg.get("tts", {})},
         "music": {**cfg.get("music", {}), "volume": 0.10, "enabled": True},
         "publish": {
-            "channel_name": "Osho Seekhe",
-            "channel_tagline": "हर कहानी, एक सीख",
+            "channel_name": "Modern Life Traps",
+            "channel_tagline": "हर ट्रैप से बाहर निकलने का रास्ता",
+            "channel_description": (
+                "Modern Life Traps पर हम आज की ज़िंदगी के छिपे हुए जालों की कहानियाँ सुनाते हैं — "
+                "ट्रेडिंग और गैंबलिंग की लत, फाइनेंशियल स्कीमें और पोंजी, क्रेडिट कार्ड और लोन का बोझ, "
+                "पानी की गुणवत्ता, सोशल मीडिया, करियर का दबाव और दुनिया की राजनीति। हर कहानी के दो "
+                "पहलू हैं: जो हमें फँसाता है, और जो हमें बाहर निकाल सकता है। यहाँ मिलेंगी असली ज़िंदगी "
+                "से जुड़ी कहानियाँ, सीधी सीख और खुद को बचाने के practical तरीके। हर हफ्ते एक नई कहानी, "
+                "एक नया सबक।"
+            ),
             "contact_email": "oshosheekhe@gmail.com",
-            "hashtags": "#HindiKahani #MoralStory #OshoSeekhe",
-            "cta": "नई कहानी हर मंगलवार और शुक्रवार शाम 7 बजे।",
+            "hashtags": "#ModernLifeTraps #HindiKahani #LifeLessons",
+            "cta": "अगर कहानी से कुछ सीख मिली हो तो लाइक कीजिए और अपना अनुभव कमेंट में लिखिए।",
         },
         "subtitles": True,
         "video": {"width": 1920, "height": 1080, "fps": 30},

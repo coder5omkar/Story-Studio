@@ -1,5 +1,10 @@
 # Osho Seekhe — Channel Kit
 
+> **Rebranded:** The active channel is now **Modern Life Traps**.
+> Current name, description, colours and assets:
+> [`channel/branding/modern-life-traps-brand-kit.md`](branding/modern-life-traps-brand-kit.md).
+> The story plan below is kept as legacy.
+
 ## Brand
 
 - **Channel name:** Osho Seekhe
