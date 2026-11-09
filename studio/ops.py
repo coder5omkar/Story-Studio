@@ -1419,12 +1419,13 @@ def start_production(
     stages = stages or ["images", "music", "tts", "assemble"]
     subtitles = bool(state["settings"].get("subtitles", True) if subtitles is None else subtitles)
     music_enabled = bool(state["settings"].get("music", {}).get("enabled", True))
-    if not music_enabled:
+    final_music = bool(state["settings"].get("final_music", music_enabled))
+    if not final_music:
         stages = [stage for stage in stages if stage != "music"]
     paths = store.ensure_dirs(pid)
     has_music = (paths["audio"] / "music.mp3").exists()
     # Only require the music gate when music will actually be mixed into the video.
-    need_music = music_enabled and ("music" in stages or ("assemble" in stages and has_music))
+    need_music = final_music and ("music" in stages or ("assemble" in stages and has_music))
     gates = check_gates(state, need_music=need_music)
     if not gates["ok"]:
         missing = [k for k, v in gates["gates"].items() if not v]
@@ -1482,9 +1483,9 @@ def start_production(
                 if not subtitles:
                     args.append("--no-subs")
                 has_music = (paths["audio"] / "music.mp3").exists()
-                if not music_enabled or not has_music:
+                if not final_music or not has_music:
                     args.append("--no-music")
-                if music_enabled and not has_music:
+                if final_music and not has_music:
                     job.log("Music file is missing; assembling without music.")
                 _run_script(pid, state, "assemble.py", args, job)
             base += span

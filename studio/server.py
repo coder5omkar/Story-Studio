@@ -888,9 +888,10 @@ def start_production(pid: str, payload: dict = Body(default={})) -> dict:
     force = bool(payload.get("force", False))
     state["settings"]["subtitles"] = subtitles
     music_enabled = bool(state["settings"].get("music", {}).get("enabled", True))
-    if not music_enabled:
+    final_music = bool(state["settings"].get("final_music", music_enabled))
+    if not final_music:
         stages = [stage for stage in stages if stage != "music"]
-    need_music = music_enabled and ("music" in stages or "assemble" in stages)
+    need_music = final_music and ("music" in stages or "assemble" in stages)
     gates = ops.check_gates(state, need_music=need_music)
     if not gates["ok"]:
         raise HTTPException(409, detail={"message": "Approval gates missing", "gates": gates})
