@@ -2378,18 +2378,44 @@ async function generatePublish() {
 async function generatePublishThumbnail() {
   const p = S.data.publish || {};
   if (!p.thumbnail_prompt) return toast("Generate the publish kit first", "error");
-  if (!(await savePublish({ silent: true }))) return;
+  const text = $("publishThumbText").value.trim();
+  if (!text) return toast("Enter thumbnail text first", "error");
+  if (!(await saveThumbnailText({ silent: true }))) return;
   try {
     const res = await api(`/api/projects/${S.pid}/publish/thumbnail`, {
       method: "POST",
       body: {
         engine: S.data.state.settings.image.engine || "zimage",
-        thumbnail_text: $("publishThumbText").value.trim(),
+        thumbnail_text: text,
       },
     });
     startJob(res);
     toast("Generating a new thumbnail");
   } catch (e) { toast(e.message, "error"); }
+}
+
+async function saveThumbnailText({ silent = false } = {}) {
+  const text = $("publishThumbText").value.trim();
+  if (!text) {
+    if (!silent) toast("Thumbnail text cannot be empty", "error");
+    return false;
+  }
+  try {
+    const res = await api(`/api/projects/${S.pid}/publish/thumbnail-text`, {
+      method: "PUT",
+      body: { thumbnail_text: text },
+    });
+    if (S.data?.publish) S.data.publish.thumbnail_text = res.thumbnail_text;
+    if (S.data?.state?.stages?.publish) {
+      S.data.state.stages.publish.thumbnail_text = res.thumbnail_text;
+      S.data.state.stages.publish.thumbnail_status = "stale";
+    }
+    if (!silent) toast("Thumbnail text saved");
+    return true;
+  } catch (e) {
+    if (!silent) toast(e.message, "error");
+    return false;
+  }
 }
 
 async function savePublish({ silent = false } = {}) {
@@ -2907,6 +2933,11 @@ function bind() {
   $("generatePublish").addEventListener("click", generatePublish);
   $("savePublish").addEventListener("click", savePublish);
   $("generateThumbnail").addEventListener("click", generatePublishThumbnail);
+  $("publishThumbText").addEventListener("input", () => {
+    clearTimeout(S.thumbTextTimer);
+    S.thumbTextTimer = setTimeout(() => saveThumbnailText({ silent: true }), 800);
+  });
+  $("publishThumbText").addEventListener("change", () => saveThumbnailText({ silent: true }));
   $("copyTitle").addEventListener("click", () => copyPublishText($("publishTitle").value, "Title"));
   $("copyDescription").addEventListener("click", () => copyPublishText($("publishDescription").value, "Description"));
   $("copyTags").addEventListener("click", () => copyPublishText($("publishTags").value, "Tags"));

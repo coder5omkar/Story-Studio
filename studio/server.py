@@ -999,6 +999,20 @@ def save_publish(pid: str, payload: dict = Body(...)) -> dict:
         raise _fail(exc)
 
 
+@app.put("/api/projects/{pid}/publish/thumbnail-text")
+def save_thumbnail_text(pid: str, payload: dict = Body(...)) -> dict:
+    state = _project(pid)
+    text = str(payload.get("thumbnail_text", "")).strip()[:28]
+    if not text:
+        raise HTTPException(400, "Thumbnail text is empty")
+    node = state["stages"].get("publish", {})
+    node["thumbnail_text"] = text
+    node["thumbnail_status"] = "stale"
+    store.set_stage(state, "publish", "ready", approved=False, notes="Thumbnail text edited")
+    store.save_state(pid, state)
+    return {"ok": True, "thumbnail_text": text}
+
+
 @app.post("/api/projects/{pid}/publish/thumbnail")
 def generate_publish_thumbnail(pid: str, payload: dict = Body(default={})) -> dict:
     state = _project(pid)
