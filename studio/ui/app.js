@@ -2309,7 +2309,9 @@ function renderPublish() {
   if (document.activeElement !== $("publishTags")) $("publishTags").value = p.tags || "";
   if (document.activeElement !== $("publishThumbText")) $("publishThumbText").value = p.thumbnail_text || "";
 
-  const thumbUrl = p.thumbnail_url || "";
+  const thumbUrl = p.thumbnail_url
+    ? `${p.thumbnail_url}${p.thumbnail_url.includes("?") ? "&" : "?"}t=${encodeURIComponent(p.thumbnail_updated_at || "")}`
+    : "";
   const img = $("publishThumbPreview");
   if (thumbUrl) {
     if (img.getAttribute("src") !== thumbUrl) img.src = thumbUrl;
@@ -2376,17 +2378,21 @@ async function generatePublish() {
 async function generatePublishThumbnail() {
   const p = S.data.publish || {};
   if (!p.thumbnail_prompt) return toast("Generate the publish kit first", "error");
+  if (!(await savePublish({ silent: true }))) return;
   try {
     const res = await api(`/api/projects/${S.pid}/publish/thumbnail`, {
       method: "POST",
-      body: { engine: S.data.state.settings.image.engine || "zimage" },
+      body: {
+        engine: S.data.state.settings.image.engine || "zimage",
+        thumbnail_text: $("publishThumbText").value.trim(),
+      },
     });
     startJob(res);
-    toast("Generating thumbnail");
+    toast("Generating a new thumbnail");
   } catch (e) { toast(e.message, "error"); }
 }
 
-async function savePublish() {
+async function savePublish({ silent = false } = {}) {
   try {
     await api(`/api/projects/${S.pid}/publish`, {
       method: "PUT",
@@ -2397,9 +2403,13 @@ async function savePublish() {
         thumbnail_text: $("publishThumbText").value.trim(),
       },
     });
-    toast("Publish kit saved");
+    if (!silent) toast("Publish kit saved");
     await loadProject();
-  } catch (e) { toast(e.message, "error"); }
+    return true;
+  } catch (e) {
+    toast(e.message, "error");
+    return false;
+  }
 }
 
 async function copyPublishText(text, label) {

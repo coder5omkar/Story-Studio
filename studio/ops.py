@@ -1712,6 +1712,8 @@ def generate_thumbnail(pid: str, state: dict, job: Job, *, engine: str | None = 
         raise RuntimeError("Generate the publish kit first so a thumbnail prompt exists")
     settings = state["settings"]
     engine = engine or settings.get("image", {}).get("engine", "zimage")
+    seed = secrets.randbelow(2**31 - 2) + 1
+    job.log(f"New thumbnail seed: {seed}")
     work = paths["samples"] / "thumbnail"
     render = work / "render"
     if render.exists():
@@ -1732,7 +1734,7 @@ def generate_thumbnail(pid: str, state: dict, job: Job, *, engine: str | None = 
     job.set_progress(10, "Rendering thumbnail base")
     _run_script(
         pid, state, "images.py",
-        ["--engine", engine, "--ids", "1", "--out-dir", str(render / "images"), "--force"],
+        ["--engine", engine, "--ids", "1", "--out-dir", str(render / "images"), "--force", "--seed", str(seed)],
         job, config_path=cfg,
     )
     base = render / "images" / "scene_001.png"

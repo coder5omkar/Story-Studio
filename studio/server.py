@@ -1005,6 +1005,11 @@ def generate_publish_thumbnail(pid: str, payload: dict = Body(default={})) -> di
     node = state["stages"].get("publish", {})
     if not node.get("thumbnail_prompt"):
         raise HTTPException(409, "Generate the publish kit first")
+    text = str(payload.get("thumbnail_text", "")).strip()
+    if text:
+        node["thumbnail_text"] = text[:28]
+        node["thumbnail_status"] = "stale"
+        store.save_state(pid, state)
     engine = str(payload.get("engine", "")).strip() or None
     return _start(pid, "publish_thumbnail", lambda job: ops.generate_thumbnail(
         pid, state, job, engine=engine,
